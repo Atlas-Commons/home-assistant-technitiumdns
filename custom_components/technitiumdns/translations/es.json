@@ -19,8 +19,8 @@
                     "server_name": "Nombre del servidor",
                     "stats_duration": "Duración de las estadísticas"
                 },
-                "description": "Por favor, ingrese la información de la API de TechnetiumDNS.",
-                "title": "Configurar TechnetiumDNS"
+                "description": "Por favor, ingrese la información de la API de TechnitiumDNS.",
+                "title": "Configurar TechnitiumDNS"
             }
         }
     }

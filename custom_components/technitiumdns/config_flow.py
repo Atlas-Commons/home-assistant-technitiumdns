@@ -1,4 +1,4 @@
-"""Config flow for TechnetiumDNS integration."""
+"""Config flow for TechnitiumDNS integration."""
 
 from homeassistant import config_entries
 from homeassistant.core import callback
@@ -8,12 +8,12 @@ import async_timeout
 import voluptuous as vol
 
 from .const import DOMAIN
-from .api import TechnetiumDNSApi
+from .api import TechnitiumDNSApi
 
 
 @config_entries.HANDLERS.register(DOMAIN)
-class TechnetiumDNSConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
-    """Handle a config flow for TechnetiumDNS."""
+class TechnitiumDNSConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
+    """Handle a config flow for TechnitiumDNS."""
 
     VERSION = 1
 
@@ -23,7 +23,7 @@ class TechnetiumDNSConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             try:
                 # Validate the input by trying to create the API object
-                api = TechnetiumDNSApi(user_input["api_url"], user_input["token"])
+                api = TechnitiumDNSApi(user_input["api_url"], user_input["token"])
                 await api.get_statistics(user_input["stats_duration"])
 
                 return self.async_create_entry(
@@ -68,11 +68,11 @@ class TechnetiumDNSConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     @staticmethod
     @callback
     def async_get_options_flow(config_entry):
-        return TechnetiumDNSOptionsFlowHandler(config_entry)
+        return TechnitiumDNSOptionsFlowHandler(config_entry)
 
 
-class TechnetiumDNSOptionsFlowHandler(config_entries.OptionsFlow):
-    """Handle an options flow for TechnetiumDNS."""
+class TechnitiumDNSOptionsFlowHandler(config_entries.OptionsFlow):
+    """Handle an options flow for TechnitiumDNS."""
 
     def __init__(self, config_entry):
         self.config_entry = config_entry

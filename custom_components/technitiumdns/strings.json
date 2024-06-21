@@ -9,8 +9,8 @@
           "username": "[%key:common::config_flow::data::username%]",
           "stats_duration": "Statistics Duration"
         },
-        "description": "Please enter your TechnetiumDNS API information.",
-        "title": "Configure TechnetiumDNS"
+        "description": "Please enter your TechnitiumDNS API information.",
+        "title": "Configure TechnitiumDNS"
       }
     },
     "error": {

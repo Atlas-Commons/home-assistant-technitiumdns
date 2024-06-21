@@ -1,42 +1,48 @@
-"""API for interacting with TechnetiumDNS."""
-
 import aiohttp
+import asyncio
 import async_timeout
 import logging
 
 _LOGGER = logging.getLogger(__name__)
 
 
-class TechnetiumDNSApi:
-    """Class to interact with the TechnetiumDNS API."""
+class TechnitiumDNSApi:
+    """Class to interact with the TechnitiumDNS API."""
 
     def __init__(self, api_url, token):
         """Initialize the API with the provided URL and token."""
-        self._api_url = api_url.rstrip('/')  # Remove trailing slash if present
+        self._api_url = api_url.rstrip("/")
         self._token = token
 
     async def fetch_data(self, endpoint, params=None):
         """Fetch data from the API."""
-        url = f"{self._api_url}/{endpoint}?token={self._token}"
-        if params:
-            for key, value in params.items():
-                url += f"&{key}={value}"
+        url = f"{self._api_url}/{endpoint}"
+        if not params:
+            params = {}
+        params["token"] = self._token
+
         async with aiohttp.ClientSession() as session:
             try:
                 with async_timeout.timeout(10):
                     _LOGGER.debug("Requesting URL: %s", url)
-                    response = await session.get(url)
-                    response.raise_for_status()
-                    data = await response.json()
-                    _LOGGER.debug("Response: %s", data)
-                    if data.get("status") != "ok":
-                        raise Exception(
-                            f"Error fetching data: {data.get('errorMessage')}"
-                        )
-                    return data
-            except (aiohttp.ClientError, asyncio.TimeoutError) as err:
+                    async with session.get(url, params=params) as response:
+                        response.raise_for_status()
+                        data = await response.json()
+                        _LOGGER.debug("Response: %s", data)
+                        if data.get("status") != "ok":
+                            raise Exception(
+                                f"Error fetching data: {data.get('errorMessage')}"
+                            )
+                        return data
+            except aiohttp.ClientError as err:
                 _LOGGER.error("Error fetching data from %s: %s", endpoint, err)
                 raise Exception(f"Error fetching data from {endpoint}: {err}")
+            except asyncio.TimeoutError:
+                _LOGGER.error("Timeout error fetching data from %s", endpoint)
+                raise Exception(f"Timeout error fetching data from {endpoint}")
+            except Exception as e:
+                _LOGGER.error("An error occurred: %s", e)
+                raise Exception(f"An error occurred: {e}")
 
     async def get_statistics(self, stats_duration):
         """Get the statistics from the API."""
@@ -72,3 +78,9 @@ class TechnetiumDNSApi:
     async def check_update(self):
         """Check for updates from the API."""
         return await self.fetch_data("api/user/checkForUpdate")
+
+    async def temporary_disable_blocking(self, minutes):
+        """Temporarily disable ad blocking."""
+        return await self.fetch_data(
+            "api/settings/temporaryDisableBlocking", params={"minutes": minutes}
+        )
