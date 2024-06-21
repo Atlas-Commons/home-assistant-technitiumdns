@@ -2,6 +2,7 @@
 
 from datetime import timedelta
 import logging
+import asyncio
 
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.helpers.update_coordinator import (
@@ -123,7 +124,9 @@ class TechnetiumDNSSensor(CoordinatorEntity, SensorEntity):
         super().__init__(coordinator)
         self._sensor_type = sensor_type
         self._server_name = server_name
-        self._name = f"{SENSOR_TYPES[sensor_type]['name']} ({server_name})"
+        self._name = (
+            f"technetiumdns_{SENSOR_TYPES[sensor_type]['name']} ({server_name})"
+        )
 
     @property
     def name(self):
