@@ -1,0 +1,69 @@
+{
+    "entity": {
+      "sensor": {
+        "total_queries_last_day": {
+          "default": "mdi:counter"
+        },
+        "blocked_queries_last_day": {
+          "default": "mdi:block-helper"
+        },
+        "clients_last_day": {
+          "default": "mdi:account-multiple"
+        },
+        "update_available": {
+          "default": "mdi:update"
+        },
+        "no_error_last_day": {
+          "default": "mdi:check-circle"
+        },
+        "server_failure_last_day": {
+          "default": "mdi:alert-circle"
+        },
+        "nx_domain_last_day": {
+          "default": "mdi:alert-circle-outline"
+        },
+        "refused_last_day": {
+          "default": "mdi:cancel"
+        },
+        "authoritative_last_day": {
+          "default": "mdi:shield"
+        },
+        "recursive_last_day": {
+          "default": "mdi:repeat"
+        },
+        "cached_last_day": {
+          "default": "mdi:cache"
+        },
+        "dropped_last_day": {
+          "default": "mdi:delete"
+        },
+        "zones_last_day": {
+          "default": "mdi:earth"
+        },
+        "cached_entries_last_day": {
+          "default": "mdi:database"
+        },
+        "allowed_zones_last_day": {
+          "default": "mdi:shield-check"
+        },
+        "blocked_zones_last_day": {
+          "default": "mdi:shield-remove"
+        },
+        "allow_list_zones_last_day": {
+          "default": "mdi:shield-account"
+        },
+        "block_list_zones_last_day": {
+          "default": "mdi:shield-off"
+        },
+        "top_clients_last_day": {
+          "default": "mdi:account-group"
+        },
+        "top_domains_last_day": {
+          "default": "mdi:web"
+        },
+        "top_blocked_domains_last_day": {
+          "default": "mdi:web-remove"
+        }
+      }
+    }
+  }

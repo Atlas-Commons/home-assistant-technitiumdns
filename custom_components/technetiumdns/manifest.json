@@ -1,0 +1,13 @@
+{
+  "domain": "technetiumdns",
+  "name": "TechnetiumDNS",
+  "codeowners": [
+    "@Amateur-God"
+  ],
+  "config_flow": true,
+  "dependencies": [],
+  "documentation": "https://www.home-assistant.io/integrations/technetiumdns",
+  "integration_type": "device",
+  "iot_class": "local_polling",
+  "requirements": ["aiohttp==3.9.5"]
+}

@@ -1,0 +1,25 @@
+{
+    "config": {
+        "abort": {
+            "already_configured": "Service is already configured",
+            "reauth_successful": "Re-authentication was successful"
+        },
+        "error": {
+            "auth": "Invalid authentication",
+            "cannot_connect": "Failed to connect",
+            "timeout": "Connection to the API timed out.",
+            "unknown": "An unexpected error occurred."
+        },
+        "step": {
+            "user": {
+                "data": {
+                    "api_url": "URL",
+                    "token": "API key",
+                    "username": "Username"
+                },
+                "description": "Please enter your TechnetiumDNS API information.",
+                "title": "Configure TechnetiumDNS"
+            }
+        }
+    }
+}
