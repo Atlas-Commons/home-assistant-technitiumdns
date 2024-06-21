@@ -1,8 +1,16 @@
-"""Constants for the TechnetiumDNS integration."""
+"""Constants for the TechnitiumDNS integration."""
 
-DOMAIN = "technetiumdns"
+DOMAIN = "Technitiumdns"
 
 DURATION_OPTIONS = ["LastHour", "LastDay", "LastWeek", "LastMonth"]
+
+AD_BLOCKING_DURATION_OPTIONS = {
+    5: "Disable Ad Blocking for 5 Minutes",
+    10: "Disable Ad Blocking for 10 Minutes",
+    30: "Disable Ad Blocking for 30 Minutes",
+    60: "Disable Ad Blocking for 60 Minutes",
+    1440: "Disable Ad Blocking for 1 Day",
+}
 
 SENSOR_TYPES = {
     "queries": {"name": "Total Queries"},
