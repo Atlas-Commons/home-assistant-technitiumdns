@@ -1,6 +1,6 @@
-# TechnetiumDNS Integration for Home Assistant
+# technitiumDNS Integration for Home Assistant
 
-This custom integration allows you to integrate TechnetiumDNS with Home Assistant, providing sensors for various DNS statistics.
+This custom integration allows you to integrate technitiumDNS with Home Assistant, providing sensors for various DNS statistics.
 
 ## Installation
 
@@ -9,12 +9,12 @@ This custom integration allows you to integrate TechnetiumDNS with Home Assistan
 1. **Download the repository:**
    - Clone the repository or download the ZIP file.
     ```bash
-    git clone https://github.com/yourusername/home-assistant-technetiumdns.git
+    git clone https://github.com/yourusername/home-assistant-technitiumdns.git
     ```
 2. **Copy to Home Assistant:**
    - Copy the `custom_components` directory into your Home Assistant configuration directory.
     ```bash
-    cp -r home-assistant-technetiumdns/custom_components/technetiumdns /path/to/your/home-assistant/config/custom_components/
+    cp -r home-assistant-technitiumdns/custom_components/technitiumdns /path/to/your/home-assistant/config/custom_components/
     ```
 
 ### HACS Installation
@@ -23,25 +23,25 @@ This custom integration allows you to integrate TechnetiumDNS with Home Assistan
    - Go to HACS in your Home Assistant.
    - Click on "Integrations".
    - Click on the three dots in the upper right corner and select "Custom repositories".
-   - Add the URL to this repository: https://github.com/Amateur-God/home-assistant-technetiumdns and select the category "Integration".
+   - Add the URL to this repository: https://github.com/Amateur-God/home-assistant-technitiumdns and select the category "Integration".
 
 2. **Install the Integration:**
-   - Find `TechnetiumDNS` in HACS and click "Install".
+   - Find `technitiumDNS` in HACS and click "Install".
 
 ## Configuration
 
 1. **Add the Integration:**
    - Go to Home Assistant Configuration > Integrations.
    - Click on the "+" button to add a new integration.
-   - Search for `TechnetiumDNS` and follow the configuration steps.
+   - Search for `technitiumDNS` and follow the configuration steps.
 
 2. **Configuration via `configuration.yaml`:**
 
    Add the following to your `configuration.yaml`:
 
    ```yaml
-   technetiumdns:
-     api_url: "http://your-technetiumdns-url:technitum-port"
+   technitiumdns:
+     api_url: "http://your-technitiumdns-url:technitum-port"
      token: "your-api-token"
      server_name: "your-server-name"
      username: "your-username"
