@@ -1,8 +1,5 @@
-"""Support for TechnetiumDNS sensors."""
-
 from datetime import timedelta
 import logging
-import asyncio
 
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.helpers.update_coordinator import (
@@ -49,45 +46,86 @@ class TechnetiumDNSCoordinator(DataUpdateCoordinator):
         """Update data via library."""
         try:
             _LOGGER.debug("Fetching data from TechnetiumDNS API")
-            statistics = await self.api.get_statistics(self.stats_duration)
-            _LOGGER.debug("Fetched statistics: %s", statistics)
-            top_clients = await self.api.get_top_clients(self.stats_duration)
-            _LOGGER.debug("Fetched top clients: %s", top_clients)
-            top_domains = await self.api.get_top_domains(self.stats_duration)
-            _LOGGER.debug("Fetched top domains: %s", top_domains)
-            top_blocked_domains = await self.api.get_top_blocked_domains(
+            technetiumdns_statistics = await self.api.get_statistics(
                 self.stats_duration
             )
-            _LOGGER.debug("Fetched top blocked domains: %s", top_blocked_domains)
-            update_info = await self.api.check_update()
-            _LOGGER.debug("Fetched update info: %s", update_info)
+            _LOGGER.debug(
+                "Fetched technetiumdns_statistics: %s", technetiumdns_statistics
+            )
+            technetiumdns_top_clients = await self.api.get_top_clients(
+                self.stats_duration
+            )
+            _LOGGER.debug(
+                "Fetched technetiumdns_top_clients: %s", technetiumdns_top_clients
+            )
+            technetiumdns_top_domains = await self.api.get_top_domains(
+                self.stats_duration
+            )
+            _LOGGER.debug(
+                "Fetched technetiumdns_top_domains: %s", technetiumdns_top_domains
+            )
+            technetiumdns_top_blocked_domains = await self.api.get_top_blocked_domains(
+                self.stats_duration
+            )
+            _LOGGER.debug(
+                "Fetched technetiumdns_top_blocked_domains: %s",
+                technetiumdns_top_blocked_domains,
+            )
+            technetiumdns_update_info = await self.api.check_update()
+            _LOGGER.debug(
+                "Fetched technetiumdns_update_info: %s", technetiumdns_update_info
+            )
 
-            stats = statistics.get("response", {}).get("stats", {})
+            # Add more logging to debug empty response issue
+            _LOGGER.debug(
+                "technetiumdns_statistics response content: %s",
+                technetiumdns_statistics,
+            )
+            _LOGGER.debug(
+                "technetiumdns_top_clients response content: %s",
+                technetiumdns_top_clients,
+            )
+            _LOGGER.debug(
+                "technetiumdns_top_domains response content: %s",
+                technetiumdns_top_domains,
+            )
+            _LOGGER.debug(
+                "technetiumdns_top_blocked_domains response content: %s",
+                technetiumdns_top_blocked_domains,
+            )
+            _LOGGER.debug(
+                "technetiumdns_update_info response content: %s",
+                technetiumdns_update_info,
+            )
+
+            technetiumdns_stats = technetiumdns_statistics.get("response", {}).get(
+                "stats", {}
+            )
             data = {
-                "queries": stats.get("totalQueries"),
-                "blocked_queries": stats.get("totalBlocked"),
-                "clients": stats.get("totalClients"),
-                "update_available": update_info.get("response", {}).get(
+                "queries": technetiumdns_stats.get("totalQueries"),
+                "blocked_queries": technetiumdns_stats.get("totalBlocked"),
+                "clients": technetiumdns_stats.get("totalClients"),
+                "update_available": technetiumdns_update_info.get("response", {}).get(
                     "updateAvailable"
                 ),
-                "no_error": stats.get("totalNoError"),
-                "server_failure": stats.get("totalServerFailure"),
-                "nx_domain": stats.get("totalNxDomain"),
-                "refused": stats.get("totalRefused"),
-                "authoritative": stats.get("totalAuthoritative"),
-                "recursive": stats.get("totalRecursive"),
-                "cached": stats.get("totalCached"),
-                "dropped": stats.get("totalDropped"),
-                "zones": stats.get("zones"),
-                "cached_entries": stats.get("cachedEntries"),
-                "allowed_zones": stats.get("allowedZones"),
-                "blocked_zones": stats.get("blockedZones"),
-                "allow_list_zones": stats.get("allowListZones"),
-                "block_list_zones": stats.get("blockListZones"),
+                "no_error": technetiumdns_stats.get("totalNoError"),
+                "server_failure": technetiumdns_stats.get("totalServerFailure"),
+                "nx_domain": technetiumdns_stats.get("totalNxDomain"),
+                "refused": technetiumdns_stats.get("totalRefused"),
+                "authoritative": technetiumdns_stats.get("totalAuthoritative"),
+                "recursive": technetiumdns_stats.get("totalRecursive"),
+                "cached": technetiumdns_stats.get("totalCached"),
+                "dropped": technetiumdns_stats.get("totalDropped"),
+                "zones": technetiumdns_stats.get("zones"),
+                "cached_entries": technetiumdns_stats.get("cachedEntries"),
+                "allowed_zones": technetiumdns_stats.get("allowedZones"),
+                "blocked_zones": technetiumdns_stats.get("blockedZones"),
+                "allow_list_zones": technetiumdns_stats.get("allowListZones"),
+                "block_list_zones": technetiumdns_stats.get("blockListZones"),
                 "top_clients": "\n".join(
                     [
                         f"{client['name']} ({client['hits']})"
-                        for client in top_clients.get("response", {}).get(
+                        for client in technetiumdns_top_clients.get("response", {}).get(
                             "topClients", []
                         )[:5]
                     ]
@@ -95,7 +133,7 @@ class TechnetiumDNSCoordinator(DataUpdateCoordinator):
                 "top_domains": "\n".join(
                     [
                         f"{domain['name']} ({domain['hits']})"
-                        for domain in top_domains.get("response", {}).get(
+                        for domain in technetiumdns_top_domains.get("response", {}).get(
                             "topDomains", []
                         )[:5]
                     ]
@@ -103,9 +141,9 @@ class TechnetiumDNSCoordinator(DataUpdateCoordinator):
                 "top_blocked_domains": "\n".join(
                     [
                         f"{domain['name']} ({domain['hits']})"
-                        for domain in top_blocked_domains.get("response", {}).get(
-                            "topBlockedDomains", []
-                        )[:5]
+                        for domain in technetiumdns_top_blocked_domains.get(
+                            "response", {}
+                        ).get("topBlockedDomains", [])[:5]
                     ]
                 ),
             }

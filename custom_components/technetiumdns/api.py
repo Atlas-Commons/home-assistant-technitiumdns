@@ -12,7 +12,7 @@ class TechnetiumDNSApi:
 
     def __init__(self, api_url, token):
         """Initialize the API with the provided URL and token."""
-        self._api_url = api_url
+        self._api_url = api_url.rstrip('/')  # Remove trailing slash if present
         self._token = token
 
     async def fetch_data(self, endpoint, params=None):
