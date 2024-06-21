@@ -1,0 +1,27 @@
+{
+    "config": {
+        "abort": {
+            "already_configured": "Le service est déjà configuré",
+            "reauth_successful": "Ré-authentification réussie"
+        },
+        "error": {
+            "auth": "Authentification invalide",
+            "cannot_connect": "Échec de la connexion",
+            "timeout": "La connexion à l'API a expiré.",
+            "unknown": "Une erreur inattendue est survenue."
+        },
+        "step": {
+            "user": {
+                "data": {
+                    "api_url": "URL",
+                    "token": "Clé API",
+                    "username": "Nom d'utilisateur",
+                    "server_name": "Nom du serveur",
+                    "stats_duration": "Durée des statistiques"
+                },
+                "description": "Veuillez entrer vos informations API TechnetiumDNS.",
+                "title": "Configurer TechnetiumDNS"
+            }
+        }
+    }
+}

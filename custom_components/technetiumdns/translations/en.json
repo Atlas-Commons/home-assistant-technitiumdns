@@ -15,7 +15,9 @@
                 "data": {
                     "api_url": "URL",
                     "token": "API key",
-                    "username": "Username"
+                    "username": "Username",
+                    "server_name": "Server Name",
+                    "stats_duration": "Statistics Duration"
                 },
                 "description": "Please enter your TechnetiumDNS API information.",
                 "title": "Configure TechnetiumDNS"
