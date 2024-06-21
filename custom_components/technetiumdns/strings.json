@@ -5,7 +5,9 @@
         "data": {
           "api_url": "[%key:common::config_flow::data::url%]",
           "token": "[%key:common::config_flow::data::api_key%]",
-          "username": "[%key:common::config_flow::data::username%]"
+          "server_name": "Server Name",
+          "username": "[%key:common::config_flow::data::username%]",
+          "stats_duration": "Statistics Duration"
         },
         "description": "Please enter your TechnetiumDNS API information.",
         "title": "Configure TechnetiumDNS"
