@@ -20,13 +20,17 @@ SCAN_INTERVAL = timedelta(minutes=1)
 
 async def async_setup_entry(hass, entry, async_add_entities):
     """Set up the TechnetiumDNS sensor based on a config entry."""
-    api = hass.data[DOMAIN][entry.entry_id]
-    coordinator = TechnetiumDNSCoordinator(hass, api)
+    config_entry = hass.data[DOMAIN][entry.entry_id]
+    api = config_entry["api"]
+    server_name = config_entry["server_name"]
+    stats_duration = config_entry["stats_duration"]
+
+    coordinator = TechnetiumDNSCoordinator(hass, api, stats_duration)
     await coordinator.async_config_entry_first_refresh()
 
     sensors = []
     for sensor_type in SENSOR_TYPES:
-        sensors.append(TechnetiumDNSSensor(coordinator, sensor_type))
+        sensors.append(TechnetiumDNSSensor(coordinator, sensor_type, server_name))
 
     async_add_entities(sensors, True)
 
@@ -34,74 +38,73 @@ async def async_setup_entry(hass, entry, async_add_entities):
 class TechnetiumDNSCoordinator(DataUpdateCoordinator):
     """Class to manage fetching TechnetiumDNS data."""
 
-    def __init__(self, hass, api):
+    def __init__(self, hass, api, stats_duration):
         """Initialize."""
         self.api = api
+        self.stats_duration = stats_duration
         super().__init__(hass, _LOGGER, name=DOMAIN, update_interval=SCAN_INTERVAL)
 
     async def _async_update_data(self):
         """Update data via library."""
         try:
             _LOGGER.debug("Fetching data from TechnetiumDNS API")
-            last_day_statistics = await self.api.get_statistics()
-            _LOGGER.debug("Fetched last day statistics: %s", last_day_statistics)
-            top_clients = await self.api.get_top_clients()
+            statistics = await self.api.get_statistics(self.stats_duration)
+            _LOGGER.debug("Fetched statistics: %s", statistics)
+            top_clients = await self.api.get_top_clients(self.stats_duration)
             _LOGGER.debug("Fetched top clients: %s", top_clients)
-            top_domains = await self.api.get_top_domains()
+            top_domains = await self.api.get_top_domains(self.stats_duration)
             _LOGGER.debug("Fetched top domains: %s", top_domains)
-            top_blocked_domains = await self.api.get_top_blocked_domains()
+            top_blocked_domains = await self.api.get_top_blocked_domains(
+                self.stats_duration
+            )
             _LOGGER.debug("Fetched top blocked domains: %s", top_blocked_domains)
             update_info = await self.api.check_update()
             _LOGGER.debug("Fetched update info: %s", update_info)
 
-            def format_list(data_list, max_items=5):
-                """Format a list of items as a multiline string within the max length."""
-                return "\n".join(data_list[:max_items])
-
-            last_day_stats = last_day_statistics.get("response", {}).get("stats", {})
+            stats = statistics.get("response", {}).get("stats", {})
             data = {
-                "queries_last_day": last_day_stats.get("totalQueries"),
-                "blocked_queries_last_day": last_day_stats.get("totalBlocked"),
-                "clients_last_day": last_day_stats.get("totalClients"),
+                "queries": stats.get("totalQueries"),
+                "blocked_queries": stats.get("totalBlocked"),
+                "clients": stats.get("totalClients"),
                 "update_available": update_info.get("response", {}).get(
                     "updateAvailable"
                 ),
-                "no_error_last_day": last_day_stats.get("totalNoError"),
-                "server_failure_last_day": last_day_stats.get("totalServerFailure"),
-                "nx_domain_last_day": last_day_stats.get("totalNxDomain"),
-                "refused_last_day": last_day_stats.get("totalRefused"),
-                "authoritative_last_day": last_day_stats.get("totalAuthoritative"),
-                "recursive_last_day": last_day_stats.get("totalRecursive"),
-                "cached_last_day": last_day_stats.get("totalCached"),
-                "dropped_last_day": last_day_stats.get("totalDropped"),
-                "zones_last_day": last_day_stats.get("zones"),
-                "cached_entries_last_day": last_day_stats.get("cachedEntries"),
-                "allowed_zones_last_day": last_day_stats.get("allowedZones"),
-                "blocked_zones_last_day": last_day_stats.get("blockedZones"),
-                "allow_list_zones_last_day": last_day_stats.get("allowListZones"),
-                "block_list_zones_last_day": last_day_stats.get("blockListZones"),
-                "top_clients_last_day": format_list(
+                "no_error": stats.get("totalNoError"),
+                "server_failure": stats.get("totalServerFailure"),
+                "nx_domain": stats.get("totalNxDomain"),
+                "refused": stats.get("totalRefused"),
+                "authoritative": stats.get("totalAuthoritative"),
+                "recursive": stats.get("totalRecursive"),
+                "cached": stats.get("totalCached"),
+                "dropped": stats.get("totalDropped"),
+                "zones": stats.get("zones"),
+                "cached_entries": stats.get("cachedEntries"),
+                "allowed_zones": stats.get("allowedZones"),
+                "blocked_zones": stats.get("blockedZones"),
+                "allow_list_zones": stats.get("allowListZones"),
+                "block_list_zones": stats.get("blockListZones"),
+                "top_clients": "\n".join(
                     [
-                        client["name"]
+                        f"{client['name']} ({client['hits']})"
                         for client in top_clients.get("response", {}).get(
                             "topClients", []
-                        )
+                        )[:5]
                     ]
                 ),
-                "top_domains_last_day": format_list(
+                "top_domains": "\n".join(
                     [
-                        domain["name"]
+                        f"{domain['name']} ({domain['hits']})"
                         for domain in top_domains.get("response", {}).get(
                             "topDomains", []
-                        )
+                        )[:5]
                     ]
                 ),
-                "top_blocked_domains_last_day": format_list(
+                "top_blocked_domains": "\n".join(
                     [
-                        domain["name"]
+                        f"{domain['name']} ({domain['hits']})"
                         for domain in top_blocked_domains.get("response", {}).get(
                             "topBlockedDomains", []
-                        )
+                        )[:5]
                     ]
                 ),
             }
@@ -115,11 +118,12 @@ class TechnetiumDNSCoordinator(DataUpdateCoordinator):
 class TechnetiumDNSSensor(CoordinatorEntity, SensorEntity):
     """Representation of a TechnetiumDNS sensor."""
 
-    def __init__(self, coordinator, sensor_type):
+    def __init__(self, coordinator, sensor_type, server_name):
         """Initialize the sensor."""
         super().__init__(coordinator)
         self._sensor_type = sensor_type
-        self._name = SENSOR_TYPES[sensor_type]["name"]
+        self._server_name = server_name
+        self._name = f"{SENSOR_TYPES[sensor_type]['name']} ({server_name})"
 
     @property
     def name(self):
@@ -148,7 +152,7 @@ class TechnetiumDNSSensor(CoordinatorEntity, SensorEntity):
     @property
     def unique_id(self):
         """Return a unique ID."""
-        return f"technetiumdns_{self._sensor_type}"
+        return f"technetiumdns_{self._sensor_type}_{self._server_name}"
 
     @property
     def available(self):

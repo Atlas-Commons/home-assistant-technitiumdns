@@ -8,6 +8,7 @@ import async_timeout
 import voluptuous as vol
 
 from .const import DOMAIN
+from .api import TechnetiumDNSApi
 
 
 @config_entries.HANDLERS.register(DOMAIN)
@@ -15,39 +16,45 @@ class TechnetiumDNSConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow for TechnetiumDNS."""
 
     VERSION = 1
-    CONNECTION_CLASS = config_entries.CONN_CLASS_LOCAL_POLL
 
     async def async_step_user(self, user_input=None):
         """Handle the initial step."""
         errors = {}
         if user_input is not None:
-            valid = await self._test_credentials(
-                user_input["api_url"], user_input["token"]
-            )
-            if valid:
-                return self.async_create_entry(title="TechnetiumDNS", data=user_input)
-            else:
-                errors["base"] = "invalid_auth"
+            try:
+                # Validate the input by trying to create the API object
+                api = TechnetiumDNSApi(user_input["api_url"], user_input["token"])
+                await api.get_statistics(user_input["stats_duration"])
 
-        return self.async_show_form(
-            step_id="user",
-            data_schema=vol.Schema(
-                {
-                    vol.Required("api_url"): str,
-                    vol.Required("token"): str,
-                    vol.Required("username"): str,
-                }
-            ),
-            errors=errors,
+                return self.async_create_entry(
+                    title=user_input["server_name"], data=user_input
+                )
+            except Exception as e:
+                errors["base"] = "auth"
+
+        data_schema = vol.Schema(
+            {
+                vol.Required("api_url"): str,
+                vol.Required("token"): str,
+                vol.Required("server_name"): str,
+                vol.Required("username"): str,
+                vol.Required("stats_duration"): vol.In(
+                    ["LastHour", "LastDay", "LastWeek", "LastMonth"]
+                ),
+            }
         )
 
-    async def _test_credentials(self, api_url, token):
+        return self.async_show_form(
+            step_id="user", data_schema=data_schema, errors=errors
+        )
+
+    async def _test_credentials(self, api_url, token, stats_duration):
         """Test the provided credentials."""
         try:
             session = aiohttp_client.async_get_clientsession(self.hass)
             with async_timeout.timeout(10):
                 response = await session.get(
-                    f"{api_url}/api/dashboard/stats/get?token={token}"
+                    f"{api_url}/api/dashboard/stats/get?token={token}&type={stats_duration}&utc=true"
                 )
                 if (
                     response.status == 200

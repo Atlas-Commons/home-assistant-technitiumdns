@@ -38,31 +38,35 @@ class TechnetiumDNSApi:
                 _LOGGER.error("Error fetching data from %s: %s", endpoint, err)
                 raise Exception(f"Error fetching data from {endpoint}: {err}")
 
-    async def get_statistics(self):
+    async def get_statistics(self, stats_duration):
         """Get the statistics from the API."""
         return await self.fetch_data(
-            "api/dashboard/stats/get", params={"type": "LastDay", "utc": "true"}
+            "api/dashboard/stats/get", params={"type": stats_duration, "utc": "true"}
         )
 
-    async def get_top_clients(self):
+    async def get_top_clients(self, stats_duration):
         """Get the top clients stats from the API."""
         return await self.fetch_data(
             "api/dashboard/stats/getTop",
-            params={"type": "LastDay", "statsType": "TopClients", "limit": 1000},
+            params={"type": stats_duration, "statsType": "TopClients", "limit": 1000},
         )
 
-    async def get_top_domains(self):
+    async def get_top_domains(self, stats_duration):
         """Get the top domains stats from the API."""
         return await self.fetch_data(
             "api/dashboard/stats/getTop",
-            params={"type": "LastDay", "statsType": "TopDomains", "limit": 1000},
+            params={"type": stats_duration, "statsType": "TopDomains", "limit": 1000},
         )
 
-    async def get_top_blocked_domains(self):
+    async def get_top_blocked_domains(self, stats_duration):
         """Get the top blocked domains stats from the API."""
         return await self.fetch_data(
             "api/dashboard/stats/getTop",
-            params={"type": "LastDay", "statsType": "TopBlockedDomains", "limit": 1000},
+            params={
+                "type": stats_duration,
+                "statsType": "TopBlockedDomains",
+                "limit": 1000,
+            },
         )
 
     async def check_update(self):

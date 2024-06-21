@@ -15,7 +15,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up TechnetiumDNS from a config entry."""
     hass.data.setdefault(DOMAIN, {})
     api = TechnetiumDNSApi(entry.data["api_url"], entry.data["token"])
-    hass.data[DOMAIN][entry.entry_id] = api
+    hass.data[DOMAIN][entry.entry_id] = {
+        "api": api,
+        "server_name": entry.data["server_name"],
+        "stats_duration": entry.data["stats_duration"],
+    }
 
     # Forward the setup to the sensor platform
     await hass.config_entries.async_forward_entry_setups(entry, ["sensor"])
