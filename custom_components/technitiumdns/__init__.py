@@ -11,7 +11,6 @@ from .api import TechnitiumDNSApi
 
 _LOGGER = logging.getLogger(__name__)
 
-
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up TechnitiumDNS from a config entry."""
     hass.data.setdefault(DOMAIN, {})
@@ -26,8 +25,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     device_registry.async_get_or_create(
         config_entry_id=entry.entry_id,
         identifiers={(DOMAIN, entry.entry_id)},
-        name=entry.data["server_name"],
         manufacturer="Technitium",
+        name=entry.data["server_name"],
         model="DNS Server",
     )
 
@@ -36,7 +35,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         entry, ["sensor", "button", "switch"]
     )
     return True
-
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
