@@ -7,6 +7,7 @@ from homeassistant.helpers.update_coordinator import (
     UpdateFailed,
     CoordinatorEntity,
 )
+from homeassistant.helpers import device_registry as dr
 
 from .const import DOMAIN, SENSOR_TYPES
 from .api import TechnitiumDNSApi
@@ -26,9 +27,14 @@ async def async_setup_entry(hass, entry, async_add_entities):
     coordinator = TechnitiumDNSCoordinator(hass, api, stats_duration)
     await coordinator.async_config_entry_first_refresh()
 
+    device_registry = dr.async_get(hass)
+    device = device_registry.async_get_device(identifiers={(DOMAIN, entry.entry_id)})
+
     sensors = []
     for sensor_type in SENSOR_TYPES:
-        sensors.append(TechnitiumDNSSensor(coordinator, sensor_type, server_name))
+        sensors.append(
+            TechnitiumDNSSensor(coordinator, sensor_type, server_name, device.id)
+        )
 
     async_add_entities(sensors, True)
 
@@ -141,11 +147,12 @@ class TechnitiumDNSCoordinator(DataUpdateCoordinator):
 class TechnitiumDNSSensor(CoordinatorEntity, SensorEntity):
     """Representation of a TechnitiumDNS sensor."""
 
-    def __init__(self, coordinator, sensor_type, server_name):
+    def __init__(self, coordinator, sensor_type, server_name, device_id):
         """Initialize the sensor."""
         super().__init__(coordinator)
         self._sensor_type = sensor_type
         self._server_name = server_name
+        self._device_id = device_id
         self._name = (
             f"Technitiumdns_{SENSOR_TYPES[sensor_type]['name']} ({server_name})"
         )
@@ -188,3 +195,13 @@ class TechnitiumDNSSensor(CoordinatorEntity, SensorEntity):
     def should_poll(self):
         """No polling needed."""
         return False
+
+    @property
+    def device_info(self):
+        """Return the device info."""
+        return {
+            "identifiers": {(DOMAIN, self._device_id)},
+            "name": self._server_name,
+            "manufacturer": "Technitium",
+            "model": "DNS Server",
+        }

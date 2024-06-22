@@ -11,11 +11,14 @@ _LOGGER = logging.getLogger(__name__)
 
 async def async_setup_entry(hass: HomeAssistant, entry, async_add_entities):
     """Set up TechnitiumDNS switch entities based on a config entry."""
-    api = TechnitiumDNSApi(entry.data["api_url"], entry.data["token"])
-    server_name = entry.data["server_name"]
+    config_entry = hass.data[DOMAIN][entry.entry_id]
+    api = config_entry["api"]
+    server_name = config_entry["server_name"]
 
     # Define the switch
-    switches = [TechnitiumDNSSwitch(hass, api, AD_BLOCKING_SWITCH, server_name)]
+    switches = [
+        TechnitiumDNSSwitch(api, AD_BLOCKING_SWITCH, server_name, entry.entry_id)
+    ]
 
     # Add entities
     async_add_entities(switches)
@@ -25,13 +28,13 @@ class TechnitiumDNSSwitch(SwitchEntity):
     """Representation of a TechnitiumDNS switch."""
 
     def __init__(
-        self, hass: HomeAssistant, api: TechnitiumDNSApi, name: str, server_name: str
+        self, api: TechnitiumDNSApi, name: str, server_name: str, entry_id: str
     ):
         """Initialize the switch."""
-        self._hass = hass
         self._api = api
         self._attr_name = f"{name} ({server_name})"
         self._is_on = False
+        self._entry_id = entry_id
 
     @property
     def name(self):
@@ -78,3 +81,14 @@ class TechnitiumDNSSwitch(SwitchEntity):
             self.async_write_ha_state()
         except Exception as e:
             _LOGGER.error(f"Failed to disable ad blocking: {e}")
+
+    @property
+    def device_info(self):
+        """Return device information for this entity."""
+        return {
+            "identifiers": {(DOMAIN, self._entry_id)},
+            "name": self._attr_name,
+            "manufacturer": "Technitium",
+            "model": "DNS Server",
+            "entry_type": "service",
+        }
