@@ -11,8 +11,9 @@ _LOGGER = logging.getLogger(__name__)
 
 async def async_setup_entry(hass: HomeAssistant, entry, async_add_entities):
     """Set up TechnitiumDNS button entities based on a config entry."""
-    api = TechnitiumDNSApi(entry.data["api_url"], entry.data["token"])
-    server_name = entry.data["server_name"]
+    config_entry = hass.data[DOMAIN][entry.entry_id]
+    api = config_entry["api"]
+    server_name = config_entry["server_name"]
 
     # Ensure durations are sorted as integers
     sorted_durations = sorted(AD_BLOCKING_DURATION_OPTIONS.keys())
@@ -20,7 +21,11 @@ async def async_setup_entry(hass: HomeAssistant, entry, async_add_entities):
     # Define the buttons using the sorted durations
     buttons = [
         TechnitiumDNSButton(
-            hass, api, AD_BLOCKING_DURATION_OPTIONS[duration], duration, server_name
+            api,
+            AD_BLOCKING_DURATION_OPTIONS[duration],
+            duration,
+            server_name,
+            entry.entry_id,
         )
         for duration in sorted_durations
     ]
@@ -34,17 +39,17 @@ class TechnitiumDNSButton(ButtonEntity):
 
     def __init__(
         self,
-        hass: HomeAssistant,
         api: TechnitiumDNSApi,
         name: str,
         duration: int,
         server_name: str,
+        entry_id: str,
     ):
         """Initialize the button."""
-        self._hass = hass
         self._api = api
         self._attr_name = f"{name} ({server_name})"
         self._duration = duration
+        self._entry_id = entry_id
 
     async def async_press(self) -> None:
         """Handle the button press."""
@@ -55,3 +60,14 @@ class TechnitiumDNSButton(ButtonEntity):
             )
         except Exception as e:
             _LOGGER.error(f"Failed to disable ad blocking: {e}")
+
+    @property
+    def device_info(self):
+        """Return device information for this entity."""
+        return {
+            "identifiers": {(DOMAIN, self._entry_id)},
+            "name": self._attr_name,
+            "manufacturer": "Technitium",
+            "model": "DNS Server",
+            "entry_type": "service",
+        }
