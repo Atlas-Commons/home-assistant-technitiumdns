@@ -84,3 +84,35 @@ class TechnitiumDNSApi:
         return await self.fetch_data(
             "api/settings/temporaryDisableBlocking", params={"minutes": minutes}
         )
+
+    async def get_dns_settings(self):
+        """Get DNS settings from the API."""
+        return await self.fetch_data("api/settings/get")
+
+    async def set_ad_blocking(self, enable):
+        """Set ad blocking state."""
+        params = {"token": self._token, "enableBlocking": str(enable).lower()}
+        url = f"{self._api_url}/api/settings/set"
+
+        async with aiohttp.ClientSession() as session:
+            try:
+                with async_timeout.timeout(10):
+                    _LOGGER.debug("Requesting URL: %s", url)
+                    async with session.get(url, params=params) as response:
+                        response.raise_for_status()
+                        data = await response.json()
+                        _LOGGER.debug("Response: %s", data)
+                        if data.get("status") != "ok":
+                            raise Exception(
+                                f"Error setting ad blocking: {data.get('errorMessage')}"
+                            )
+                        return data
+            except aiohttp.ClientError as err:
+                _LOGGER.error("Error setting ad blocking: %s", err)
+                raise Exception(f"Error setting ad blocking: {err}")
+            except asyncio.TimeoutError:
+                _LOGGER.error("Timeout error setting ad blocking")
+                raise Exception("Timeout error setting ad blocking")
+            except Exception as e:
+                _LOGGER.error("An error occurred: %s", e)
+                raise Exception(f"An error occurred: {e}")

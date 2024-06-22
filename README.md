@@ -9,7 +9,7 @@ This custom integration allows you to integrate technitiumDNS with Home Assistan
 1. **Download the repository:**
    - Clone the repository or download the ZIP file.
     ```bash
-    git clone https://github.com/yourusername/home-assistant-technitiumdns.git
+    git clone https://github.com/Amateur-God/home-assistant-technitiumdns.git
     ```
 2. **Copy to Home Assistant:**
    - Copy the `custom_components` directory into your Home Assistant configuration directory.
