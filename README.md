@@ -9,7 +9,7 @@ This custom integration allows you to integrate technitiumDNS with Home Assistan
 1. **Download the repository:**
    - Clone the repository or download the ZIP file.
     ```bash
-    git clone https://github.com/yourusername/home-assistant-technitiumdns.git
+    git clone https://github.com/Amateur-God/home-assistant-technitiumdns.git
     ```
 2. **Copy to Home Assistant:**
    - Copy the `custom_components` directory into your Home Assistant configuration directory.
@@ -50,7 +50,9 @@ This custom integration allows you to integrate technitiumDNS with Home Assistan
 
 ## Usage
 
-This integration provides sensors for:
+This integration provides
+
+Sensors for:
 
 - Total Queries
 - Blocked Queries
@@ -73,6 +75,19 @@ This integration provides sensors for:
 - Allow List Zones
 - Block List Zones
 - Update Available
+
+Switches for:
+
+- Enable/disable Ad Blocking (will check current ad blocking state on initialization and set the switch to the correct position)
+
+Buttons for:
+
+- Temporarily disable ad blocking for:
+   - 5 mins
+   - 10 mins
+   - 30 mins
+   - 60 mins
+   - 1 day
 
 ## Contributing
 
