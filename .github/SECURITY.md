@@ -1,0 +1,165 @@
+# Security Policy
+
+I take the security of my software and services seriously. This includes all open-source software I create, maintain, or help to maintain.
+
+If you believe you have found a security vulnerability in any repository I maintain, including this one, please report it responsibly as described below.
+
+**Please DO NOT report security vulnerabilities publicly!**
+
+So... DO NOT create a GitHub issue for it ;)
+
+## Reporting a Vulnerability
+
+Privately and confidentially, send me a detailed description of the vulnerability you have discovered using an encrypted and authenticated channel. Personally, I prefer this to be done using PGP encrypted email. Contact information needed for this is listed below.
+
+In the report, please include as much information as possible, including:
+
+- An extensive description of the vulnerability.
+- How it could be exploited.
+- The potential impact you think it would have (e.g., DOS attackable, privacy concerns, leaking of credentials).
+- Steps for reproducing the vulnerability.
+- Code (if any), that is needed for reproducing the issue.
+- If you have an idea for a fix, patch, or any other adjustment for mitigating the vulnerability reported.
+
+Sorry for the long list, but providing as much information as possible allows me to act more quickly. Make sure to write your report in the English language.
+
+Please take care not to violate the privacy of other people in your report. For example, stack traces or exploit scripts sent to me should never contain private or personally identifiable information.
+
+## After You Have Reported the Vulnerability
+
+Give me at least a week to investigate and respond to the reported vulnerability you have found, and up to 60 days to fix and distribute it. This includes a window for existing users to upgrade, patch, or mitigate the issue as well.
+
+If you intend, at any point, to disclose the vulnerability to someone else or maybe even publicly, please give me a reasonable advance notice.
+
+If any dependent projects are involved, I will take care of informing the maintainers of those projects as well.
+
+## Bug Bounty
+
+Unfortunately, I cannot offer a paid bug bounty program. I will, however, give my best efforts to show appreciation towards people that took the time and effort to disclose vulnerabilities responsibly.
+
+I, and the open-source community, will be forever grateful.
+
+Oh, and if we ever meet, I'm happy to buy you a beer :)
+
+## Contact Information
+
+Please contact me, Amateur-God, directly.
+
+<!---security@frenck.dev (not for support!)--->
+
+GPG Fingerprint: `2418 5C17 C92D 985F B31C  1554 9C15 AD13 5473 7566`
+
+https://keys.openpgp.org/search?q=24185C17C92D985FB31C15549C15AD1354737566
+
+```txt
+-----BEGIN PGP PUBLIC KEY BLOCK-----
+
+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
+WkfY/Nszax35+pM=
+=jsch
+-----END PGP PUBLIC KEY BLOCK-----
+```
