@@ -7,6 +7,7 @@ from homeassistant.helpers.update_coordinator import (
     UpdateFailed,
     CoordinatorEntity,
 )
+from homeassistant.helpers.entity import DeviceInfo
 
 from .const import DOMAIN, SENSOR_TYPES
 from .api import TechnitiumDNSApi
@@ -14,7 +15,6 @@ from .api import TechnitiumDNSApi
 _LOGGER = logging.getLogger(__name__)
 
 SCAN_INTERVAL = timedelta(minutes=1)
-
 
 async def async_setup_entry(hass, entry, async_add_entities):
     """Set up the TechnitiumDNS sensor based on a config entry."""
@@ -28,10 +28,9 @@ async def async_setup_entry(hass, entry, async_add_entities):
 
     sensors = []
     for sensor_type in SENSOR_TYPES:
-        sensors.append(TechnitiumDNSSensor(coordinator, sensor_type, server_name))
+        sensors.append(TechnitiumDNSSensor(coordinator, sensor_type, server_name, entry.entry_id))
 
     async_add_entities(sensors, True)
-
 
 class TechnitiumDNSCoordinator(DataUpdateCoordinator):
     """Class to manage fetching TechnitiumDNS data."""
@@ -46,52 +45,25 @@ class TechnitiumDNSCoordinator(DataUpdateCoordinator):
         """Update data via library."""
         try:
             _LOGGER.debug("Fetching data from TechnitiumDNS API")
-            Technitiumdns_statistics = await self.api.get_statistics(
-                self.stats_duration
-            )
-            Technitiumdns_top_clients = await self.api.get_top_clients(
-                self.stats_duration
-            )
-            Technitiumdns_top_domains = await self.api.get_top_domains(
-                self.stats_duration
-            )
-            Technitiumdns_top_blocked_domains = await self.api.get_top_blocked_domains(
-                self.stats_duration
-            )
+            Technitiumdns_statistics = await self.api.get_statistics(self.stats_duration)
+            Technitiumdns_top_clients = await self.api.get_top_clients(self.stats_duration)
+            Technitiumdns_top_domains = await self.api.get_top_domains(self.stats_duration)
+            Technitiumdns_top_blocked_domains = await self.api.get_top_blocked_domains(self.stats_duration)
             Technitiumdns_update_info = await self.api.check_update()
 
             # Add more logging to debug empty response issue
-            _LOGGER.debug(
-                "Technitiumdns_statistics response content: %s",
-                Technitiumdns_statistics,
-            )
-            _LOGGER.debug(
-                "Technitiumdns_top_clients response content: %s",
-                Technitiumdns_top_clients,
-            )
-            _LOGGER.debug(
-                "Technitiumdns_top_domains response content: %s",
-                Technitiumdns_top_domains,
-            )
-            _LOGGER.debug(
-                "Technitiumdns_top_blocked_domains response content: %s",
-                Technitiumdns_top_blocked_domains,
-            )
-            _LOGGER.debug(
-                "Technitiumdns_update_info response content: %s",
-                Technitiumdns_update_info,
-            )
+            _LOGGER.debug("Technitiumdns_statistics response content: %s", Technitiumdns_statistics)
+            _LOGGER.debug("Technitiumdns_top_clients response content: %s", Technitiumdns_top_clients)
+            _LOGGER.debug("Technitiumdns_top_domains response content: %s", Technitiumdns_top_domains)
+            _LOGGER.debug("Technitiumdns_top_blocked_domains response content: %s", Technitiumdns_top_blocked_domains)
+            _LOGGER.debug("Technitiumdns_update_info response content: %s", Technitiumdns_update_info)
 
-            Technitiumdns_stats = Technitiumdns_statistics.get("response", {}).get(
-                "stats", {}
-            )
+            Technitiumdns_stats = Technitiumdns_statistics.get("response", {}).get("stats", {})
             data = {
                 "queries": Technitiumdns_stats.get("totalQueries"),
                 "blocked_queries": Technitiumdns_stats.get("totalBlocked"),
                 "clients": Technitiumdns_stats.get("totalClients"),
-                "update_available": Technitiumdns_update_info.get("response", {}).get(
-                    "updateAvailable"
-                ),
+                "update_available": Technitiumdns_update_info.get("response", {}).get("updateAvailable"),
                 "no_error": Technitiumdns_stats.get("totalNoError"),
                 "server_failure": Technitiumdns_stats.get("totalServerFailure"),
                 "nx_domain": Technitiumdns_stats.get("totalNxDomain"),
@@ -107,28 +79,13 @@ class TechnitiumDNSCoordinator(DataUpdateCoordinator):
                 "allow_list_zones": Technitiumdns_stats.get("allowListZones"),
                 "block_list_zones": Technitiumdns_stats.get("blockListZones"),
                 "top_clients": "\n".join(
-                    [
-                        f"{client['name']} ({client['hits']})"
-                        for client in Technitiumdns_top_clients.get("response", {}).get(
-                            "topClients", []
-                        )[:5]
-                    ]
+                    [f"{client['name']} ({client['hits']})" for client in Technitiumdns_top_clients.get("response", {}).get("topClients", [])[:5]]
                 ),
                 "top_domains": "\n".join(
-                    [
-                        f"{domain['name']} ({domain['hits']})"
-                        for domain in Technitiumdns_top_domains.get("response", {}).get(
-                            "topDomains", []
-                        )[:5]
-                    ]
+                    [f"{domain['name']} ({domain['hits']})" for domain in Technitiumdns_top_domains.get("response", {}).get("topDomains", [])[:5]]
                 ),
                 "top_blocked_domains": "\n".join(
-                    [
-                        f"{domain['name']} ({domain['hits']})"
-                        for domain in Technitiumdns_top_blocked_domains.get(
-                            "response", {}
-                        ).get("topBlockedDomains", [])[:5]
-                    ]
+                    [f"{domain['name']} ({domain['hits']})" for domain in Technitiumdns_top_blocked_domains.get("response", {}).get("topBlockedDomains", [])[:5]]
                 ),
             }
             _LOGGER.debug("Data combined: %s", data)
@@ -137,18 +94,16 @@ class TechnitiumDNSCoordinator(DataUpdateCoordinator):
             _LOGGER.error("Error fetching data: %s", err)
             raise UpdateFailed(f"Error fetching data: {err}")
 
-
 class TechnitiumDNSSensor(CoordinatorEntity, SensorEntity):
     """Representation of a TechnitiumDNS sensor."""
 
-    def __init__(self, coordinator, sensor_type, server_name):
+    def __init__(self, coordinator, sensor_type, server_name, entry_id):
         """Initialize the sensor."""
         super().__init__(coordinator)
         self._sensor_type = sensor_type
         self._server_name = server_name
-        self._name = (
-            f"Technitiumdns_{SENSOR_TYPES[sensor_type]['name']} ({server_name})"
-        )
+        self._entry_id = entry_id
+        self._name = f"Technitiumdns_{SENSOR_TYPES[sensor_type]['name']} ({server_name})"
 
     @property
     def name(self):
@@ -163,9 +118,7 @@ class TechnitiumDNSSensor(CoordinatorEntity, SensorEntity):
 
         # Ensure the state value is within the allowable length
         if isinstance(state_value, str) and len(state_value) > 255:
-            _LOGGER.error(
-                "State value for %s exceeds 255 characters", self._sensor_type
-            )
+            _LOGGER.error("State value for %s exceeds 255 characters", self._sensor_type)
             return state_value[:255]
 
         if isinstance(state_value, (list, dict)):
@@ -188,3 +141,13 @@ class TechnitiumDNSSensor(CoordinatorEntity, SensorEntity):
     def should_poll(self):
         """No polling needed."""
         return False
+
+    @property
+    def device_info(self):
+        """Return device information for this entity."""
+        return DeviceInfo(
+            identifiers={(DOMAIN, self._entry_id)},
+            name=self._server_name,
+            manufacturer="Technitium",
+            model="DNS Server",
+        )
