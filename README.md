@@ -1,3 +1,11 @@
+![GitHub branch check runs](https://img.shields.io/github/check-runs/Amateur-God/home-assistant-technitiumdns/main?style=plastic)
+![GitHub commit activity](https://img.shields.io/github/commit-activity/t/Amateur-God/home-assistant-technitiumdns?style=plastic)
+![GitHub Issues or Pull Requests](https://img.shields.io/github/issues/Amateur-God/home-assistant-technitiumdns?style=plastic)
+![GitHub Release](https://img.shields.io/github/v/release/Amateur-God/home-assistant-technitiumdns?display_name=release&style=plastic&label=stable%20Release)
+![GitHub Release](https://img.shields.io/github/v/release/Amateur-God/home-assistant-technitiumdns?include_prereleases&display_name=release&style=plastic&label=Beta%20Release)
+
+
+
 # technitiumDNS Integration for Home Assistant
 
 This custom integration allows you to integrate technitiumDNS with Home Assistant, providing sensors for various DNS statistics.
