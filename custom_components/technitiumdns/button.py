@@ -30,12 +30,14 @@ async def async_setup_entry(hass, entry, async_add_entities):
 class TechnitiumDNSButton(ButtonEntity):
     """Representation of a TechnitiumDNS button."""
 
-    def __init__(self, api: TechnitiumDNSApi, name: str, duration: int, server_name: str, entry_id: str):
-        """Initialize the button."""
+    def __init__(self, api: TechnitiumDNSApi, name: str,  duration: int, server_name: str, entry_id: str):
+        """Initialize the switch."""
         self._api = api
         self._attr_name = f"{name} ({server_name})"
         self._duration = duration
+        self._is_on = False
         self._entry_id = entry_id
+        self._attr_unique_id = f"{entry_id}_{duration}"
 
     async def async_press(self) -> None:
         """Handle the button press."""

@@ -4,7 +4,7 @@ DOMAIN = "technitiumdns"
 
 DURATION_OPTIONS = ["LastHour", "LastDay", "LastWeek", "LastMonth"]
 
-AD_BLOCKING_SWITCH = "Enbable Ad Blocking"
+AD_BLOCKING_SWITCH = "Enable Ad Blocking"
 
 AD_BLOCKING_DURATION_OPTIONS = {
     5: "Disable Ad Blocking for 5 Minutes",

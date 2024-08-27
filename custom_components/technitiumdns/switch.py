@@ -28,6 +28,7 @@ class TechnitiumDNSSwitch(SwitchEntity):
         self._attr_name = f"{name} ({server_name})"
         self._is_on = False
         self._entry_id = entry_id
+        self._attr_unique_id = f"{entry_id}_{name}"
 
     @property
     def name(self):
