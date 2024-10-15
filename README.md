@@ -3,7 +3,7 @@
 ![GitHub Issues or Pull Requests](https://img.shields.io/github/issues/Amateur-God/home-assistant-technitiumdns?style=plastic)
 ![GitHub Release](https://img.shields.io/github/v/release/Amateur-God/home-assistant-technitiumdns?display_name=release&style=plastic&label=stable%20Release)
 ![GitHub Release](https://img.shields.io/github/v/release/Amateur-God/home-assistant-technitiumdns?include_prereleases&display_name=release&style=plastic&label=Beta%20Release)
-![Discord](https://img.shields.io/discord/1032437213100777502)
+[![Discord](https://img.shields.io/discord/1032437213100777502)](https://discord.gg/4HcExnCHg2)
 
 
 
