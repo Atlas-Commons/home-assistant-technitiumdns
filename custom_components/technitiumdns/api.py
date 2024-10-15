@@ -118,14 +118,3 @@ class TechnitiumDNSApi:
             except Exception as e:
                 _LOGGER.error("An error occurred: %s", e)
                 raise Exception(f"An error occurred: {e}")
-
-    async def get_blocked_percentage(self, stats_duration):
-        """Get the percentage of blocked queries."""
-        return await self.fetch_data(
-            "api/dashboard/stats/getBlockedPercentage",
-            params={"type": stats_duration}
-        )
-
-    async def get_system_info(self):
-        """Get system information, such as memory usage and uptime."""
-        return await self.fetch_data("api/system/info")

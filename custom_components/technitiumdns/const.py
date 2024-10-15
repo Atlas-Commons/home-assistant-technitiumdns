@@ -36,7 +36,4 @@ SENSOR_TYPES = {
     "top_clients": {"name": "Top Clients", "state_class": None, "device_class": None},
     "top_domains": {"name": "Top Domains", "state_class": None, "device_class": None},
     "top_blocked_domains": {"name": "Top Blocked Domains", "state_class": None, "device_class": None},
-    "blocked_percentage": {"name": "Blocked Percentage", "state_class": "measurement", "device_class": "percentage"},
-    "uptime": {"name": "System Uptime", "state_class": "measurement", "device_class": "duration"},
-    "memory_usage": {"name": "Memory Usage", "state_class": "measurement", "device_class": "data_size"},
 }
