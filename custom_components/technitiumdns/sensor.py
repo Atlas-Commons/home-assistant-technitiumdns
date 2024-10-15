@@ -104,11 +104,17 @@ class TechnitiumDNSSensor(CoordinatorEntity, SensorEntity):
         self._server_name = server_name
         self._entry_id = entry_id
         self._name = f"Technitiumdns_{SENSOR_TYPES[sensor_type]['name']} ({server_name})"
+        self._state_class = SENSOR_TYPES[sensor_type].get('state_class', 'measurement')
 
     @property
     def name(self):
         """Return the name of the sensor."""
         return self._name
+
+    @property
+    def state_class(self):
+        """Return the state class of the sensor."""
+        return self._state_class
 
     @property
     def state(self):
