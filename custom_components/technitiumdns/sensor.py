@@ -50,6 +50,8 @@ class TechnitiumDNSCoordinator(DataUpdateCoordinator):
             Technitiumdns_top_domains = await self.api.get_top_domains(self.stats_duration)
             Technitiumdns_top_blocked_domains = await self.api.get_top_blocked_domains(self.stats_duration)
             Technitiumdns_update_info = await self.api.check_update()
+            blocked_percentage = await self.api.get_blocked_percentage(self.stats_duration)
+            system_info = await self.api.get_system_info()
 
             # Add more logging to debug empty response issue
             _LOGGER.debug("Technitiumdns_statistics response content: %s", Technitiumdns_statistics)
@@ -87,6 +89,9 @@ class TechnitiumDNSCoordinator(DataUpdateCoordinator):
                 "top_blocked_domains": "\n".join(
                     [f"{domain['name']} ({domain['hits']})" for domain in Technitiumdns_top_blocked_domains.get("response", {}).get("topBlockedDomains", [])[:5]]
                 ),
+                "blocked_percentage": blocked_percentage.get("response", {}).get("percentage"),
+                "uptime": system_info.get("response", {}).get("uptime"),
+                "memory_usage": system_info.get("response", {}).get("memory"),
             }
             _LOGGER.debug("Data combined: %s", data)
             return data
