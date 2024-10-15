@@ -8,6 +8,7 @@ from homeassistant.helpers.update_coordinator import (
     CoordinatorEntity,
 )
 from homeassistant.helpers.entity import DeviceInfo
+from homeassistant.exceptions import ConfigEntryNotReady
 
 from .const import DOMAIN, SENSOR_TYPES
 from .api import TechnitiumDNSApi
@@ -18,19 +19,23 @@ SCAN_INTERVAL = timedelta(minutes=1)
 
 async def async_setup_entry(hass, entry, async_add_entities):
     """Set up the TechnitiumDNS sensor based on a config entry."""
-    config_entry = hass.data[DOMAIN][entry.entry_id]
-    api = config_entry["api"]
-    server_name = config_entry["server_name"]
-    stats_duration = config_entry["stats_duration"]
+    try:
+        config_entry = hass.data[DOMAIN][entry.entry_id]
+        api = config_entry["api"]
+        server_name = config_entry["server_name"]
+        stats_duration = config_entry["stats_duration"]
 
-    coordinator = TechnitiumDNSCoordinator(hass, api, stats_duration)
-    await coordinator.async_config_entry_first_refresh()
+        coordinator = TechnitiumDNSCoordinator(hass, api, stats_duration)
+        await coordinator.async_config_entry_first_refresh()
 
-    sensors = []
-    for sensor_type in SENSOR_TYPES:
-        sensors.append(TechnitiumDNSSensor(coordinator, sensor_type, server_name, entry.entry_id))
-
-    async_add_entities(sensors, True)
+        sensors = [
+            TechnitiumDNSSensor(coordinator, sensor_type, server_name, entry.entry_id)
+            for sensor_type in SENSOR_TYPES
+        ]
+        async_add_entities(sensors, True)
+    except Exception as e:
+        _LOGGER.error("Could not initialize TechnitiumDNS: %s", e)
+        raise ConfigEntryNotReady
 
 class TechnitiumDNSCoordinator(DataUpdateCoordinator):
     """Class to manage fetching TechnitiumDNS data."""
