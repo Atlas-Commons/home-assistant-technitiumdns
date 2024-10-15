@@ -3,6 +3,7 @@
 ![GitHub Issues or Pull Requests](https://img.shields.io/github/issues/Amateur-God/home-assistant-technitiumdns?style=plastic)
 ![GitHub Release](https://img.shields.io/github/v/release/Amateur-God/home-assistant-technitiumdns?display_name=release&style=plastic&label=stable%20Release)
 ![GitHub Release](https://img.shields.io/github/v/release/Amateur-God/home-assistant-technitiumdns?include_prereleases&display_name=release&style=plastic&label=Beta%20Release)
+![Discord](https://img.shields.io/discord/1032437213100777502)
 
 
 
@@ -38,23 +39,10 @@ This custom integration allows you to integrate technitiumDNS with Home Assistan
 
 ## Configuration
 
-1. **Add the Integration:**
+**Add the Integration:**
    - Go to Home Assistant Configuration > Integrations.
    - Click on the "+" button to add a new integration.
    - Search for `technitiumDNS` and follow the configuration steps.
-
-2. **Configuration via `configuration.yaml`:**
-
-   Add the following to your `configuration.yaml`:
-
-   ```yaml
-   technitiumdns:
-     api_url: "http://your-technitiumdns-url:technitum-port"
-     token: "your-api-token"
-     server_name: "your-server-name"
-     username: "your-username"
-     stats_duration: "LastDay"  # Options are LastHour, LastDay, LastWeek, LastMonth
-   ```
 
 ## Usage
 
