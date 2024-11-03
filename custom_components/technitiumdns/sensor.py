@@ -51,24 +51,23 @@ class TechnitiumDNSCoordinator(DataUpdateCoordinator):
         try:
             _LOGGER.debug("Fetching data from TechnitiumDNS API")
             Technitiumdns_statistics = await self.api.get_statistics(self.stats_duration)
-            Technitiumdns_top_clients = await self.api.get_top_clients(self.stats_duration)
-            Technitiumdns_top_domains = await self.api.get_top_domains(self.stats_duration)
-            Technitiumdns_top_blocked_domains = await self.api.get_top_blocked_domains(self.stats_duration)
             Technitiumdns_update_info = await self.api.check_update()
 
-            # Add more logging to debug empty response issue
+            # Add logging to debug response content
             _LOGGER.debug("Technitiumdns_statistics response content: %s", Technitiumdns_statistics)
-            _LOGGER.debug("Technitiumdns_top_clients response content: %s", Technitiumdns_top_clients)
-            _LOGGER.debug("Technitiumdns_top_domains response content: %s", Technitiumdns_top_domains)
-            _LOGGER.debug("Technitiumdns_top_blocked_domains response content: %s", Technitiumdns_top_blocked_domains)
             _LOGGER.debug("Technitiumdns_update_info response content: %s", Technitiumdns_update_info)
 
             Technitiumdns_stats = Technitiumdns_statistics.get("response", {}).get("stats", {})
+            total_queries = Technitiumdns_stats.get("totalQueries", 0)
+            blocked_queries = Technitiumdns_stats.get("totalBlocked", 0)
+            blocked_percentage = (blocked_queries / total_queries * 100) if total_queries > 0 else 0
+
             data = {
-                "queries": Technitiumdns_stats.get("totalQueries", 0),
-                "blocked_queries": Technitiumdns_stats.get("totalBlocked", 0),
+                "queries": total_queries,
+                "blocked_queries": blocked_queries,
                 "clients": Technitiumdns_stats.get("totalClients", 0),
                 "update_available": Technitiumdns_update_info.get("response", {}).get("updateAvailable", False),
+                "blocked_percentage": blocked_percentage,
                 "no_error": Technitiumdns_stats.get("totalNoError", 0),
                 "server_failure": Technitiumdns_stats.get("totalServerFailure", 0),
                 "nx_domain": Technitiumdns_stats.get("totalNxDomain", 0),
@@ -85,15 +84,15 @@ class TechnitiumDNSCoordinator(DataUpdateCoordinator):
                 "block_list_zones": Technitiumdns_stats.get("blockListZones", 0),
                 "top_clients": [
                     {"name": client.get("name", "Unknown"), "hits": client.get("hits", 0)}
-                    for client in Technitiumdns_top_clients.get("response", {}).get("topClients", [])[:5]
+                    for client in Technitiumdns_statistics.get("response", {}).get("topClients", [])[:5]
                 ],
                 "top_domains": [
                     {"name": domain.get("name", "Unknown"), "hits": domain.get("hits", 0)}
-                    for domain in Technitiumdns_top_domains.get("response", {}).get("topDomains", [])[:5]
+                    for domain in Technitiumdns_statistics.get("response", {}).get("topDomains", [])[:5]
                 ],
                 "top_blocked_domains": [
                     {"name": domain.get("name", "Unknown"), "hits": domain.get("hits", 0)}
-                    for domain in Technitiumdns_top_blocked_domains.get("response", {}).get("topBlockedDomains", [])[:5]
+                    for domain in Technitiumdns_statistics.get("response", {}).get("topBlockedDomains", [])[:5]
                 ],
             }
             _LOGGER.debug("Data combined: %s", data)
