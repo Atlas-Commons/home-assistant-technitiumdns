@@ -5,7 +5,6 @@ import async_timeout
 
 _LOGGER = logging.getLogger(__name__)
 
-
 class TechnitiumDNSApi:
     """Class to interact with the TechnitiumDNS API."""
 
@@ -37,11 +36,9 @@ class TechnitiumDNSApi:
                             return data
                 except (aiohttp.ClientError, asyncio.TimeoutError) as err:
                     _LOGGER.error("Attempt %d: Error fetching data from %s: %s", attempt + 1, endpoint, err)
-                    if attempt == retries - 1:  # Raise the exception if final attempt fails
-                        raise Exception(
-                            f"Error fetching data from {endpoint} after {retries} attempts: {err}"
-                        ) from err
-                    await asyncio.sleep(5)  # Wait 5 seconds before retrying
+                    if attempt == retries - 1:
+                        raise Exception(f"Error fetching data from {endpoint} after {retries} attempts: {err}") from err
+                    await asyncio.sleep(5)
                 except Exception as e:
                     _LOGGER.error("An error occurred: %s", e)
                     raise Exception(f"An error occurred: {e}") from e
@@ -105,9 +102,7 @@ class TechnitiumDNSApi:
                         data = await response.json()
                         _LOGGER.debug("Response: %s", data)
                         if data.get("status") != "ok":
-                            raise Exception(
-                                f"Error setting ad blocking: {data.get('errorMessage')}"
-                            )
+                            raise Exception(f"Error setting ad blocking: {data.get('errorMessage')}")
                         return data
             except aiohttp.ClientError as err:
                 _LOGGER.error("Error setting ad blocking: %s", err)

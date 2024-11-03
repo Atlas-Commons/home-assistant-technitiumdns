@@ -65,39 +65,42 @@ class TechnitiumDNSCoordinator(DataUpdateCoordinator):
 
             Technitiumdns_stats = Technitiumdns_statistics.get("response", {}).get("stats", {})
             data = {
-                "queries": Technitiumdns_stats.get("totalQueries"),
-                "blocked_queries": Technitiumdns_stats.get("totalBlocked"),
-                "clients": Technitiumdns_stats.get("totalClients"),
-                "update_available": Technitiumdns_update_info.get("response", {}).get("updateAvailable"),
-                "no_error": Technitiumdns_stats.get("totalNoError"),
-                "server_failure": Technitiumdns_stats.get("totalServerFailure"),
-                "nx_domain": Technitiumdns_stats.get("totalNxDomain"),
-                "refused": Technitiumdns_stats.get("totalRefused"),
-                "authoritative": Technitiumdns_stats.get("totalAuthoritative"),
-                "recursive": Technitiumdns_stats.get("totalRecursive"),
-                "cached": Technitiumdns_stats.get("totalCached"),
-                "dropped": Technitiumdns_stats.get("totalDropped"),
-                "zones": Technitiumdns_stats.get("zones"),
-                "cached_entries": Technitiumdns_stats.get("cachedEntries"),
-                "allowed_zones": Technitiumdns_stats.get("allowedZones"),
-                "blocked_zones": Technitiumdns_stats.get("blockedZones"),
-                "allow_list_zones": Technitiumdns_stats.get("allowListZones"),
-                "block_list_zones": Technitiumdns_stats.get("blockListZones"),
-                "top_clients": "\n".join(
-                    [f"{client['name']} ({client['hits']})" for client in Technitiumdns_top_clients.get("response", {}).get("topClients", [])[:5]]
-                ),
-                "top_domains": "\n".join(
-                    [f"{domain['name']} ({domain['hits']})" for domain in Technitiumdns_top_domains.get("response", {}).get("topDomains", [])[:5]]
-                ),
-                "top_blocked_domains": "\n".join(
-                    [f"{domain['name']} ({domain['hits']})" for domain in Technitiumdns_top_blocked_domains.get("response", {}).get("topBlockedDomains", [])[:5]]
-                ),
+                "queries": Technitiumdns_stats.get("totalQueries", 0),
+                "blocked_queries": Technitiumdns_stats.get("totalBlocked", 0),
+                "clients": Technitiumdns_stats.get("totalClients", 0),
+                "update_available": Technitiumdns_update_info.get("response", {}).get("updateAvailable", False),
+                "no_error": Technitiumdns_stats.get("totalNoError", 0),
+                "server_failure": Technitiumdns_stats.get("totalServerFailure", 0),
+                "nx_domain": Technitiumdns_stats.get("totalNxDomain", 0),
+                "refused": Technitiumdns_stats.get("totalRefused", 0),
+                "authoritative": Technitiumdns_stats.get("totalAuthoritative", 0),
+                "recursive": Technitiumdns_stats.get("totalRecursive", 0),
+                "cached": Technitiumdns_stats.get("totalCached", 0),
+                "dropped": Technitiumdns_stats.get("totalDropped", 0),
+                "zones": Technitiumdns_stats.get("zones", 0),
+                "cached_entries": Technitiumdns_stats.get("cachedEntries", 0),
+                "allowed_zones": Technitiumdns_stats.get("allowedZones", 0),
+                "blocked_zones": Technitiumdns_stats.get("blockedZones", 0),
+                "allow_list_zones": Technitiumdns_stats.get("allowListZones", 0),
+                "block_list_zones": Technitiumdns_stats.get("blockListZones", 0),
+                "top_clients": [
+                    {"name": client.get("name", "Unknown"), "hits": client.get("hits", 0)}
+                    for client in Technitiumdns_top_clients.get("response", {}).get("topClients", [])[:5]
+                ],
+                "top_domains": [
+                    {"name": domain.get("name", "Unknown"), "hits": domain.get("hits", 0)}
+                    for domain in Technitiumdns_top_domains.get("response", {}).get("topDomains", [])[:5]
+                ],
+                "top_blocked_domains": [
+                    {"name": domain.get("name", "Unknown"), "hits": domain.get("hits", 0)}
+                    for domain in Technitiumdns_top_blocked_domains.get("response", {}).get("topBlockedDomains", [])[:5]
+                ],
             }
             _LOGGER.debug("Data combined: %s", data)
             return data
         except Exception as err:
             _LOGGER.error("Error fetching data: %s", err)
-            raise UpdateFailed(f"Error fetching data: {err}")
+            raise UpdateFailed(f"Error fetching data: {err}") from err
 
 class TechnitiumDNSSensor(CoordinatorEntity, SensorEntity):
     """Representation of a TechnitiumDNS sensor."""
@@ -133,8 +136,7 @@ class TechnitiumDNSSensor(CoordinatorEntity, SensorEntity):
             return state_value[:255]
 
         if isinstance(state_value, (list, dict)):
-            # Convert complex types to string representation and ensure it is within the limit
-            state_value = len(state_value)
+            state_value = len(state_value)  # Return length if complex
 
         return state_value
 
@@ -142,13 +144,12 @@ class TechnitiumDNSSensor(CoordinatorEntity, SensorEntity):
     def extra_state_attributes(self):
         """Return additional attributes in a table-friendly format based on sensor type."""
         attributes = {
-            "queries": self.coordinator.data.get("queries"),
-            "blocked_queries": self.coordinator.data.get("blocked_queries"),
-            "clients": self.coordinator.data.get("clients"),
-            "update_available": self.coordinator.data.get("update_available"),
+            "queries": self.coordinator.data.get("queries", 0),
+            "blocked_queries": self.coordinator.data.get("blocked_queries", 0),
+            "clients": self.coordinator.data.get("clients", 0),
+            "update_available": self.coordinator.data.get("update_available", False),
         }
 
-        # Add structured table data based on the sensor type
         if self._sensor_type == 'top_clients':
             attributes["top_clients_table"] = [
                 {"Client": client.get('name', 'Unknown'), "Hits": client.get('hits', 0)}
