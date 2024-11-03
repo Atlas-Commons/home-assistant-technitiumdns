@@ -51,16 +51,10 @@ class TechnitiumDNSCoordinator(DataUpdateCoordinator):
         try:
             _LOGGER.debug("Fetching data from TechnitiumDNS API")
             Technitiumdns_statistics = await self.api.get_statistics(self.stats_duration)
-            Technitiumdns_top_clients = await self.api.get_top_clients(self.stats_duration)
-            Technitiumdns_top_domains = await self.api.get_top_domains(self.stats_duration)
-            Technitiumdns_top_blocked_domains = await self.api.get_top_blocked_domains(self.stats_duration)
             Technitiumdns_update_info = await self.api.check_update()
 
-            # Add more logging to debug empty response issue
+            # Add logging to debug response content
             _LOGGER.debug("Technitiumdns_statistics response content: %s", Technitiumdns_statistics)
-            _LOGGER.debug("Technitiumdns_top_clients response content: %s", Technitiumdns_top_clients)
-            _LOGGER.debug("Technitiumdns_top_domains response content: %s", Technitiumdns_top_domains)
-            _LOGGER.debug("Technitiumdns_top_blocked_domains response content: %s", Technitiumdns_top_blocked_domains)
             _LOGGER.debug("Technitiumdns_update_info response content: %s", Technitiumdns_update_info)
 
             Technitiumdns_stats = Technitiumdns_statistics.get("response", {}).get("stats", {})
@@ -85,15 +79,15 @@ class TechnitiumDNSCoordinator(DataUpdateCoordinator):
                 "block_list_zones": Technitiumdns_stats.get("blockListZones", 0),
                 "top_clients": [
                     {"name": client.get("name", "Unknown"), "hits": client.get("hits", 0)}
-                    for client in Technitiumdns_top_clients.get("response", {}).get("topClients", [])[:5]
+                    for client in Technitiumdns_statistics.get("response", {}).get("topClients", [])[:5]
                 ],
                 "top_domains": [
                     {"name": domain.get("name", "Unknown"), "hits": domain.get("hits", 0)}
-                    for domain in Technitiumdns_top_domains.get("response", {}).get("topDomains", [])[:5]
+                    for domain in Technitiumdns_statistics.get("response", {}).get("topDomains", [])[:5]
                 ],
                 "top_blocked_domains": [
                     {"name": domain.get("name", "Unknown"), "hits": domain.get("hits", 0)}
-                    for domain in Technitiumdns_top_blocked_domains.get("response", {}).get("topBlockedDomains", [])[:5]
+                    for domain in Technitiumdns_statistics.get("response", {}).get("topBlockedDomains", [])[:5]
                 ],
             }
             _LOGGER.debug("Data combined: %s", data)
