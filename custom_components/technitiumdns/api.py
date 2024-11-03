@@ -44,7 +44,7 @@ class TechnitiumDNSApi:
                     await asyncio.sleep(5)  # Wait 5 seconds before retrying
                 except Exception as e:
                     _LOGGER.error("An error occurred: %s", e)
-                    raise Exception(f"An error occurred: {e}")
+                    raise Exception(f"An error occurred: {e}") from e
 
     async def get_statistics(self, stats_duration):
         """Get the statistics from the API."""
