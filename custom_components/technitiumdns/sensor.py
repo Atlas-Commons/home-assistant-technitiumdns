@@ -35,7 +35,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
         async_add_entities(sensors, True)
     except Exception as e:
         _LOGGER.error("Could not initialize TechnitiumDNS: %s", e)
-        raise ConfigEntryNotReady
+        raise ConfigEntryNotReady from e
 
 class TechnitiumDNSCoordinator(DataUpdateCoordinator):
     """Class to manage fetching TechnitiumDNS data."""
@@ -137,6 +137,29 @@ class TechnitiumDNSSensor(CoordinatorEntity, SensorEntity):
             state_value = len(state_value)
 
         return state_value
+
+    @property
+    def extra_state_attributes(self):
+        """Return additional attributes in a table-friendly format based on sensor type."""
+        attributes = {}
+
+        if self._sensor_type == 'top_clients':
+            attributes["top_clients_table"] = [
+                {"Client": client.get('name', 'Unknown'), "Hits": client.get('hits', 0)}
+                for client in self.coordinator.data.get("top_clients", [])
+            ]
+        elif self._sensor_type == 'top_domains':
+            attributes["top_domains_table"] = [
+                {"Domain": domain.get('name', 'Unknown'), "Hits": domain.get('hits', 0)}
+                for domain in self.coordinator.data.get("top_domains", [])
+            ]
+        elif self._sensor_type == 'top_blocked_domains':
+            attributes["top_blocked_domains_table"] = [
+                {"Blocked Domain": domain.get('name', 'Unknown'), "Hits": domain.get('hits', 0)}
+                for domain in self.coordinator.data.get("top_blocked_domains", [])
+            ]
+
+        return attributes
 
     @property
     def unique_id(self):
