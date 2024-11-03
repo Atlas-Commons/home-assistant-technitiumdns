@@ -141,8 +141,14 @@ class TechnitiumDNSSensor(CoordinatorEntity, SensorEntity):
     @property
     def extra_state_attributes(self):
         """Return additional attributes in a table-friendly format based on sensor type."""
-        attributes = {}
+        attributes = {
+            "queries": self.coordinator.data.get("queries"),
+            "blocked_queries": self.coordinator.data.get("blocked_queries"),
+            "clients": self.coordinator.data.get("clients"),
+            "update_available": self.coordinator.data.get("update_available"),
+        }
 
+        # Add structured table data based on the sensor type
         if self._sensor_type == 'top_clients':
             attributes["top_clients_table"] = [
                 {"Client": client.get('name', 'Unknown'), "Hits": client.get('hits', 0)}

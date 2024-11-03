@@ -1,7 +1,7 @@
-import aiohttp
 import asyncio
-import async_timeout
 import logging
+import aiohttp
+import async_timeout
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -111,10 +111,10 @@ class TechnitiumDNSApi:
                         return data
             except aiohttp.ClientError as err:
                 _LOGGER.error("Error setting ad blocking: %s", err)
-                raise Exception(f"Error setting ad blocking: {err}")
-            except asyncio.TimeoutError:
+                raise Exception(f"Error setting ad blocking: {err}") from err
+            except asyncio.TimeoutError as e:
                 _LOGGER.error("Timeout error setting ad blocking")
-                raise Exception("Timeout error setting ad blocking")
+                raise Exception("Timeout error setting ad blocking") from e
             except Exception as e:
                 _LOGGER.error("An error occurred: %s", e)
-                raise Exception(f"An error occurred: {e}")
+                raise Exception(f"An error occurred: {e}") from e
