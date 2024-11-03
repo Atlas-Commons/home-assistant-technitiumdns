@@ -58,16 +58,11 @@ class TechnitiumDNSCoordinator(DataUpdateCoordinator):
             _LOGGER.debug("Technitiumdns_update_info response content: %s", Technitiumdns_update_info)
 
             Technitiumdns_stats = Technitiumdns_statistics.get("response", {}).get("stats", {})
-            total_queries = Technitiumdns_stats.get("totalQueries", 0)
-            blocked_queries = Technitiumdns_stats.get("totalBlocked", 0)
-            blocked_percentage = (blocked_queries / total_queries * 100) if total_queries > 0 else 0
-
             data = {
-                "queries": total_queries,
-                "blocked_queries": blocked_queries,
+                "queries": Technitiumdns_stats.get("totalQueries", 0),
+                "blocked_queries": Technitiumdns_stats.get("totalBlocked", 0),
                 "clients": Technitiumdns_stats.get("totalClients", 0),
                 "update_available": Technitiumdns_update_info.get("response", {}).get("updateAvailable", False),
-                "blocked_percentage": blocked_percentage,
                 "no_error": Technitiumdns_stats.get("totalNoError", 0),
                 "server_failure": Technitiumdns_stats.get("totalServerFailure", 0),
                 "nx_domain": Technitiumdns_stats.get("totalNxDomain", 0),
