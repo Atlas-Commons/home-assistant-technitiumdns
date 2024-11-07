@@ -1,10 +1,9 @@
-import aiohttp
 import asyncio
-import async_timeout
 import logging
+import aiohttp
+import async_timeout
 
 _LOGGER = logging.getLogger(__name__)
-
 
 class TechnitiumDNSApi:
     """Class to interact with the TechnitiumDNS API."""
@@ -17,32 +16,32 @@ class TechnitiumDNSApi:
     async def fetch_data(self, endpoint, params=None):
         """Fetch data from the API."""
         url = f"{self._api_url}/{endpoint}"
+        retries = 3
+
         if not params:
             params = {}
         params["token"] = self._token
 
-        async with aiohttp.ClientSession() as session:
-            try:
-                with async_timeout.timeout(10):
-                    _LOGGER.debug("Requesting URL: %s", url)
-                    async with session.get(url, params=params) as response:
-                        response.raise_for_status()
-                        data = await response.json()
-                        _LOGGER.debug("Response: %s", data)
-                        if data.get("status") != "ok":
-                            raise Exception(
-                                f"Error fetching data: {data.get('errorMessage')}"
-                            )
-                        return data
-            except aiohttp.ClientError as err:
-                _LOGGER.error("Error fetching data from %s: %s", endpoint, err)
-                raise Exception(f"Error fetching data from {endpoint}: {err}")
-            except asyncio.TimeoutError:
-                _LOGGER.error("Timeout error fetching data from %s", endpoint)
-                raise Exception(f"Timeout error fetching data from {endpoint}")
-            except Exception as e:
-                _LOGGER.error("An error occurred: %s", e)
-                raise Exception(f"An error occurred: {e}")
+        for attempt in range(retries):
+            async with aiohttp.ClientSession() as session:
+                try:
+                    with async_timeout.timeout(20):  # Increase timeout to 20 seconds
+                        _LOGGER.debug("Requesting URL: %s (Attempt %d)", url, attempt + 1)
+                        async with session.get(url, params=params) as response:
+                            response.raise_for_status()
+                            data = await response.json()
+                            _LOGGER.debug("Response: %s", data)
+                            if data.get("status") != "ok":
+                                raise Exception(f"Error fetching data: {data.get('errorMessage')}")
+                            return data
+                except (aiohttp.ClientError, asyncio.TimeoutError) as err:
+                    _LOGGER.error("Attempt %d: Error fetching data from %s: %s", attempt + 1, endpoint, err)
+                    if attempt == retries - 1:
+                        raise Exception(f"Error fetching data from {endpoint} after {retries} attempts: {err}") from err
+                    await asyncio.sleep(5)
+                except Exception as e:
+                    _LOGGER.error("An error occurred: %s", e)
+                    raise Exception(f"An error occurred: {e}") from e
 
     async def get_statistics(self, stats_duration):
         """Get the statistics from the API."""
@@ -103,16 +102,14 @@ class TechnitiumDNSApi:
                         data = await response.json()
                         _LOGGER.debug("Response: %s", data)
                         if data.get("status") != "ok":
-                            raise Exception(
-                                f"Error setting ad blocking: {data.get('errorMessage')}"
-                            )
+                            raise Exception(f"Error setting ad blocking: {data.get('errorMessage')}")
                         return data
             except aiohttp.ClientError as err:
                 _LOGGER.error("Error setting ad blocking: %s", err)
-                raise Exception(f"Error setting ad blocking: {err}")
-            except asyncio.TimeoutError:
+                raise Exception(f"Error setting ad blocking: {err}") from err
+            except asyncio.TimeoutError as e:
                 _LOGGER.error("Timeout error setting ad blocking")
-                raise Exception("Timeout error setting ad blocking")
+                raise Exception("Timeout error setting ad blocking") from e
             except Exception as e:
                 _LOGGER.error("An error occurred: %s", e)
-                raise Exception(f"An error occurred: {e}")
+                raise Exception(f"An error occurred: {e}") from e
