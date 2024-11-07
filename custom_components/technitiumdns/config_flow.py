@@ -1,13 +1,10 @@
 """Config flow for TechnitiumDNS integration."""
 
-
-import asyncio
 from homeassistant import config_entries
 from homeassistant.core import callback
 from homeassistant.helpers import aiohttp_client
 import aiohttp
 import async_timeout
-import contextlib
 import voluptuous as vol
 
 from .const import DOMAIN
@@ -53,7 +50,7 @@ class TechnitiumDNSConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def _test_credentials(self, api_url, token, stats_duration):
         """Test the provided credentials."""
-        with contextlib.suppress(aiohttp.ClientError, asyncio.TimeoutError):
+        try:
             session = aiohttp_client.async_get_clientsession(self.hass)
             with async_timeout.timeout(10):
                 response = await session.get(
@@ -64,6 +61,8 @@ class TechnitiumDNSConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     and (await response.json()).get("status") == "ok"
                 ):
                     return True
+        except (aiohttp.ClientError, asyncio.TimeoutError):
+            pass
         return False
 
     @staticmethod
