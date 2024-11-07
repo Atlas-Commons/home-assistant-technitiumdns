@@ -8,6 +8,7 @@ from homeassistant.helpers.update_coordinator import (
     CoordinatorEntity,
 )
 from homeassistant.helpers.entity import DeviceInfo
+from homeassistant.exceptions import ConfigEntryNotReady
 
 from .const import DOMAIN, SENSOR_TYPES
 from .api import TechnitiumDNSApi
@@ -18,19 +19,23 @@ SCAN_INTERVAL = timedelta(minutes=1)
 
 async def async_setup_entry(hass, entry, async_add_entities):
     """Set up the TechnitiumDNS sensor based on a config entry."""
-    config_entry = hass.data[DOMAIN][entry.entry_id]
-    api = config_entry["api"]
-    server_name = config_entry["server_name"]
-    stats_duration = config_entry["stats_duration"]
+    try:
+        config_entry = hass.data[DOMAIN][entry.entry_id]
+        api = config_entry["api"]
+        server_name = config_entry["server_name"]
+        stats_duration = config_entry["stats_duration"]
 
-    coordinator = TechnitiumDNSCoordinator(hass, api, stats_duration)
-    await coordinator.async_config_entry_first_refresh()
+        coordinator = TechnitiumDNSCoordinator(hass, api, stats_duration)
+        await coordinator.async_config_entry_first_refresh()
 
-    sensors = []
-    for sensor_type in SENSOR_TYPES:
-        sensors.append(TechnitiumDNSSensor(coordinator, sensor_type, server_name, entry.entry_id))
-
-    async_add_entities(sensors, True)
+        sensors = [
+            TechnitiumDNSSensor(coordinator, sensor_type, server_name, entry.entry_id)
+            for sensor_type in SENSOR_TYPES
+        ]
+        async_add_entities(sensors, True)
+    except Exception as e:
+        _LOGGER.error("Could not initialize TechnitiumDNS: %s", e)
+        raise ConfigEntryNotReady from e
 
 class TechnitiumDNSCoordinator(DataUpdateCoordinator):
     """Class to manage fetching TechnitiumDNS data."""
@@ -46,53 +51,50 @@ class TechnitiumDNSCoordinator(DataUpdateCoordinator):
         try:
             _LOGGER.debug("Fetching data from TechnitiumDNS API")
             Technitiumdns_statistics = await self.api.get_statistics(self.stats_duration)
-            Technitiumdns_top_clients = await self.api.get_top_clients(self.stats_duration)
-            Technitiumdns_top_domains = await self.api.get_top_domains(self.stats_duration)
-            Technitiumdns_top_blocked_domains = await self.api.get_top_blocked_domains(self.stats_duration)
             Technitiumdns_update_info = await self.api.check_update()
 
-            # Add more logging to debug empty response issue
+            # Add logging to debug response content
             _LOGGER.debug("Technitiumdns_statistics response content: %s", Technitiumdns_statistics)
-            _LOGGER.debug("Technitiumdns_top_clients response content: %s", Technitiumdns_top_clients)
-            _LOGGER.debug("Technitiumdns_top_domains response content: %s", Technitiumdns_top_domains)
-            _LOGGER.debug("Technitiumdns_top_blocked_domains response content: %s", Technitiumdns_top_blocked_domains)
             _LOGGER.debug("Technitiumdns_update_info response content: %s", Technitiumdns_update_info)
 
             Technitiumdns_stats = Technitiumdns_statistics.get("response", {}).get("stats", {})
             data = {
-                "queries": Technitiumdns_stats.get("totalQueries"),
-                "blocked_queries": Technitiumdns_stats.get("totalBlocked"),
-                "clients": Technitiumdns_stats.get("totalClients"),
-                "update_available": Technitiumdns_update_info.get("response", {}).get("updateAvailable"),
-                "no_error": Technitiumdns_stats.get("totalNoError"),
-                "server_failure": Technitiumdns_stats.get("totalServerFailure"),
-                "nx_domain": Technitiumdns_stats.get("totalNxDomain"),
-                "refused": Technitiumdns_stats.get("totalRefused"),
-                "authoritative": Technitiumdns_stats.get("totalAuthoritative"),
-                "recursive": Technitiumdns_stats.get("totalRecursive"),
-                "cached": Technitiumdns_stats.get("totalCached"),
-                "dropped": Technitiumdns_stats.get("totalDropped"),
-                "zones": Technitiumdns_stats.get("zones"),
-                "cached_entries": Technitiumdns_stats.get("cachedEntries"),
-                "allowed_zones": Technitiumdns_stats.get("allowedZones"),
-                "blocked_zones": Technitiumdns_stats.get("blockedZones"),
-                "allow_list_zones": Technitiumdns_stats.get("allowListZones"),
-                "block_list_zones": Technitiumdns_stats.get("blockListZones"),
-                "top_clients": "\n".join(
-                    [f"{client['name']} ({client['hits']})" for client in Technitiumdns_top_clients.get("response", {}).get("topClients", [])[:5]]
-                ),
-                "top_domains": "\n".join(
-                    [f"{domain['name']} ({domain['hits']})" for domain in Technitiumdns_top_domains.get("response", {}).get("topDomains", [])[:5]]
-                ),
-                "top_blocked_domains": "\n".join(
-                    [f"{domain['name']} ({domain['hits']})" for domain in Technitiumdns_top_blocked_domains.get("response", {}).get("topBlockedDomains", [])[:5]]
-                ),
+                "queries": Technitiumdns_stats.get("totalQueries", 0),
+                "blocked_queries": Technitiumdns_stats.get("totalBlocked", 0),
+                "clients": Technitiumdns_stats.get("totalClients", 0),
+                "update_available": Technitiumdns_update_info.get("response", {}).get("updateAvailable", False),
+                "no_error": Technitiumdns_stats.get("totalNoError", 0),
+                "server_failure": Technitiumdns_stats.get("totalServerFailure", 0),
+                "nx_domain": Technitiumdns_stats.get("totalNxDomain", 0),
+                "refused": Technitiumdns_stats.get("totalRefused", 0),
+                "authoritative": Technitiumdns_stats.get("totalAuthoritative", 0),
+                "recursive": Technitiumdns_stats.get("totalRecursive", 0),
+                "cached": Technitiumdns_stats.get("totalCached", 0),
+                "dropped": Technitiumdns_stats.get("totalDropped", 0),
+                "zones": Technitiumdns_stats.get("zones", 0),
+                "cached_entries": Technitiumdns_stats.get("cachedEntries", 0),
+                "allowed_zones": Technitiumdns_stats.get("allowedZones", 0),
+                "blocked_zones": Technitiumdns_stats.get("blockedZones", 0),
+                "allow_list_zones": Technitiumdns_stats.get("allowListZones", 0),
+                "block_list_zones": Technitiumdns_stats.get("blockListZones", 0),
+                "top_clients": [
+                    {"name": client.get("name", "Unknown"), "hits": client.get("hits", 0)}
+                    for client in Technitiumdns_statistics.get("response", {}).get("topClients", [])[:5]
+                ],
+                "top_domains": [
+                    {"name": domain.get("name", "Unknown"), "hits": domain.get("hits", 0)}
+                    for domain in Technitiumdns_statistics.get("response", {}).get("topDomains", [])[:5]
+                ],
+                "top_blocked_domains": [
+                    {"name": domain.get("name", "Unknown"), "hits": domain.get("hits", 0)}
+                    for domain in Technitiumdns_statistics.get("response", {}).get("topBlockedDomains", [])[:5]
+                ],
             }
             _LOGGER.debug("Data combined: %s", data)
             return data
         except Exception as err:
             _LOGGER.error("Error fetching data: %s", err)
-            raise UpdateFailed(f"Error fetching data: {err}")
+            raise UpdateFailed(f"Error fetching data: {err}") from err
 
 class TechnitiumDNSSensor(CoordinatorEntity, SensorEntity):
     """Representation of a TechnitiumDNS sensor."""
@@ -104,11 +106,17 @@ class TechnitiumDNSSensor(CoordinatorEntity, SensorEntity):
         self._server_name = server_name
         self._entry_id = entry_id
         self._name = f"Technitiumdns_{SENSOR_TYPES[sensor_type]['name']} ({server_name})"
+        self._state_class = SENSOR_TYPES[sensor_type].get('state_class', 'measurement')
 
     @property
     def name(self):
         """Return the name of the sensor."""
         return self._name
+
+    @property
+    def state_class(self):
+        """Return the state class of the sensor."""
+        return self._state_class
 
     @property
     def state(self):
@@ -122,10 +130,37 @@ class TechnitiumDNSSensor(CoordinatorEntity, SensorEntity):
             return state_value[:255]
 
         if isinstance(state_value, (list, dict)):
-            # Convert complex types to string representation and ensure it is within the limit
-            state_value = len(state_value)
+            state_value = len(state_value)  # Return length if complex
 
         return state_value
+
+    @property
+    def extra_state_attributes(self):
+        """Return additional attributes in a table-friendly format based on sensor type."""
+        attributes = {
+            "queries": self.coordinator.data.get("queries", 0),
+            "blocked_queries": self.coordinator.data.get("blocked_queries", 0),
+            "clients": self.coordinator.data.get("clients", 0),
+            "update_available": self.coordinator.data.get("update_available", False),
+        }
+
+        if self._sensor_type == 'top_clients':
+            attributes["top_clients_table"] = [
+                {"Client": client.get('name', 'Unknown'), "Hits": client.get('hits', 0)}
+                for client in self.coordinator.data.get("top_clients", [])
+            ]
+        elif self._sensor_type == 'top_domains':
+            attributes["top_domains_table"] = [
+                {"Domain": domain.get('name', 'Unknown'), "Hits": domain.get('hits', 0)}
+                for domain in self.coordinator.data.get("top_domains", [])
+            ]
+        elif self._sensor_type == 'top_blocked_domains':
+            attributes["top_blocked_domains_table"] = [
+                {"Blocked Domain": domain.get('name', 'Unknown'), "Hits": domain.get('hits', 0)}
+                for domain in self.coordinator.data.get("top_blocked_domains", [])
+            ]
+
+        return attributes
 
     @property
     def unique_id(self):
