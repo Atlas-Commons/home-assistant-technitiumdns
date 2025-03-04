@@ -12,7 +12,10 @@ class TechnitiumDNSApi:
         """Initialize the API with the provided URL and token."""
         self._api_url = api_url.rstrip("/")
         self._token = token
-        self._check_ssl = check_ssl
+        if check_ssl is True:
+            self._check_ssl = None
+        else:
+            self._check_ssl = False
 
     async def fetch_data(self, endpoint, params=None):
         """Fetch data from the API."""

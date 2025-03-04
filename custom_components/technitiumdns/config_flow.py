@@ -38,7 +38,7 @@ class TechnitiumDNSConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         data_schema = vol.Schema(
             {
                 vol.Required("api_url"): str,
-                vol.Required("check_ssl"): bool,
+                vol.Required("check_ssl", default=True): bool,
                 vol.Required("token"): str,
                 vol.Required("server_name"): str,
                 vol.Required("username"): str,
