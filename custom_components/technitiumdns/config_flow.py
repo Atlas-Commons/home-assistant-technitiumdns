@@ -26,7 +26,7 @@ class TechnitiumDNSConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             try:
                 # Validate the input by trying to create the API object
-                api = TechnitiumDNSApi(user_input["api_url"], user_input["token"])
+                api = TechnitiumDNSApi(user_input["api_url"], user_input["check_ssl"], user_input["token"])
                 await api.get_statistics(user_input["stats_duration"])
 
                 return self.async_create_entry(
@@ -38,6 +38,7 @@ class TechnitiumDNSConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         data_schema = vol.Schema(
             {
                 vol.Required("api_url"): str,
+                vol.Required("check_ssl"): bool,
                 vol.Required("token"): str,
                 vol.Required("server_name"): str,
                 vol.Required("username"): str,
