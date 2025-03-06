@@ -4,6 +4,7 @@
       "user": {
         "data": {
           "api_url": "[%key:common::config_flow::data::url%]",
+          "check_ssl": "[%key:common::config_flow::data::check_ssl%]",
           "token": "[%key:common::config_flow::data::api_key%]",
           "server_name": "Server Name",
           "username": "[%key:common::config_flow::data::username%]",

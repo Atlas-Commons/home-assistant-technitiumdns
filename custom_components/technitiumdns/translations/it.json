@@ -14,6 +14,7 @@
             "user": {
                 "data": {
                     "api_url": "URL",
+                    "check_ssl": "Verifica SSL",
                     "token": "Chiave API",
                     "username": "Nome utente",
                     "server_name": "Nome del server",
