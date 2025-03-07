@@ -14,7 +14,7 @@ _LOGGER = logging.getLogger(__name__)
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up TechnitiumDNS from a config entry."""
     hass.data.setdefault(DOMAIN, {})
-    api = TechnitiumDNSApi(entry.data["api_url"], entry.data["check_ssl"], entry.data["token"])
+    api = TechnitiumDNSApi(entry.data["api_url"], entry.data.get("check_ssl", True), entry.data["token"])
     hass.data[DOMAIN][entry.entry_id] = {
         "api": api,
         "server_name": entry.data["server_name"],
