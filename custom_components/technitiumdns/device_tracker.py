@@ -101,6 +101,15 @@ class TechnitiumDHCPCoordinator(DataUpdateCoordinator):
             leases = dhcp_response.get("response", {}).get("leases", [])
             _LOGGER.info("Retrieved %d total DHCP leases from API", len(leases))
             
+            # Log summary of lease types found
+            if leases:
+                types_found = set()
+                for lease in leases:
+                    lease_type = lease.get("type")
+                    if lease_type:
+                        types_found.add(lease_type)
+                _LOGGER.info("Lease types found: %s", sorted(types_found))
+            
             # Process and clean up lease data
             processed_leases = []
             filtered_count = 0
@@ -108,14 +117,36 @@ class TechnitiumDHCPCoordinator(DataUpdateCoordinator):
             
             for i, lease in enumerate(leases):
                 lease_type = lease.get("type")
-                lease_status = lease.get("addressStatus")
-                _LOGGER.debug("Processing lease %d: type=%s, status=%s, address=%s", 
-                             i+1, lease_type, lease_status, lease.get("address"))
+                ip_address = lease.get("address")
+                mac_address = lease.get("hardwareAddress", "")
+                _LOGGER.debug("Processing lease %d: type=%s, address=%s, mac=%s", i+1, lease_type, ip_address, mac_address)
                 
-                # Only include active leases
-                if lease.get("type") == "Dynamic" and lease.get("addressStatus") == "InUse":
-                    ip_address = lease.get("address")
-                    
+                # Filter leases based on the official Technitium DNS API specification
+                should_include = False
+                skip_reason = ""
+                
+                # Check if we have basic required data
+                if not ip_address:
+                    skip_reason = "no IP address"
+                elif not mac_address:
+                    skip_reason = "no MAC address"
+                else:
+                    # Accept lease types according to Technitium DNS API docs
+                    if lease_type == "Dynamic":
+                        should_include = True
+                        _LOGGER.debug("Including Dynamic lease")
+                    elif lease_type == "Reserved":
+                        should_include = True
+                        _LOGGER.debug("Including Reserved lease")
+                    elif not lease_type:  # Type might be empty/null
+                        should_include = True
+                        _LOGGER.debug("Including lease with empty type (assuming dynamic)")
+                    else:
+                        # Log but still include unknown lease types to be flexible
+                        should_include = True
+                        _LOGGER.debug("Including lease with unknown type '%s'", lease_type)
+                
+                if should_include:
                     # Apply IP filtering
                     if not should_track_ip(ip_address, self.ip_filter_mode, self.ip_ranges):
                         filtered_count += 1
@@ -124,23 +155,20 @@ class TechnitiumDHCPCoordinator(DataUpdateCoordinator):
                     
                     processed_lease = {
                         "ip_address": ip_address,
-                        "mac_address": lease.get("hardwareAddress", "").upper(),
+                        "mac_address": mac_address.upper(),
                         "hostname": lease.get("hostName", ""),
                         "client_id": lease.get("clientIdentifier", ""),
                         "lease_expires": lease.get("leaseExpires"),
                         "lease_obtained": lease.get("leaseObtained"),
                         "scope": lease.get("scope", ""),
+                        "type": lease_type,
                     }
-                    # Use MAC address as unique identifier if available
-                    if processed_lease["mac_address"]:
-                        processed_leases.append(processed_lease)
-                        _LOGGER.debug("Added lease for tracking: IP=%s, MAC=%s, hostname=%s", 
-                                     ip_address, processed_lease["mac_address"], processed_lease["hostname"])
-                    else:
-                        _LOGGER.debug("Skipping lease without MAC address: %s", lease)
-                        skipped_count += 1
+                    processed_leases.append(processed_lease)
+                    _LOGGER.debug("Added lease for tracking: IP=%s, MAC=%s, hostname=%s, type=%s", 
+                                 ip_address, processed_lease["mac_address"], processed_lease["hostname"], 
+                                 lease_type)
                 else:
-                    _LOGGER.debug("Skipping non-active lease: type=%s, status=%s", lease_type, lease_status)
+                    _LOGGER.debug("Skipping lease: %s", skip_reason)
                     skipped_count += 1
             
             _LOGGER.info("DHCP data processing complete: %d active leases, %d filtered, %d skipped", 
