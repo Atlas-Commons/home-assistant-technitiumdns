@@ -31,11 +31,23 @@
                     "enable_dhcp_tracking": "Activer le suivi des appareils DHCP",
                     "dhcp_update_interval": "Intervalle de mise à jour DHCP (secondes)",
                     "dhcp_ip_filter_mode": "Mode de filtre IP",
-                    "dhcp_ip_ranges": "Adresses IP/Plages (séparées par virgule ou nouvelle ligne)"
+                    "dhcp_ip_ranges": "Adresses IP/Plages (séparées par virgule ou nouvelle ligne)",
+                    "test_dhcp": "Tester la connexion DHCP"
                 },
                 "description": "Activez le suivi des appareils DHCP pour surveiller les appareils connectés à votre serveur DHCP Technitium. Utilisez le filtrage IP pour contrôler quels appareils sont suivis en fonction de leurs adresses IP.",
                 "title": "Options TechnitiumDNS"
+            },
+            "dhcp_test": {
+                "data": {
+                    "dhcp_test_results": "Résultats du test DHCP"
+                },
+                "description": "Résultats du test de connexion DHCP. Cela montre tous les baux DHCP disponibles de votre serveur Technitium DNS.",
+                "title": "Résultats du test de connexion DHCP"
             }
+        },
+        "error": {
+            "dhcp_error": "L'API DHCP a retourné une erreur. Vérifiez la configuration de votre serveur Technitium DNS.",
+            "dhcp_connection_failed": "Échec de la connexion à l'API DHCP. Vérifiez l'URL de votre serveur et le token."
         }
     }
 }

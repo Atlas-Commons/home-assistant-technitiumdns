@@ -31,11 +31,23 @@
                     "enable_dhcp_tracking": "DHCP-Geräteverfolgung aktivieren",
                     "dhcp_update_interval": "DHCP-Aktualisierungsintervall (Sekunden)",
                     "dhcp_ip_filter_mode": "IP-Filter-Modus",
-                    "dhcp_ip_ranges": "IP-Adressen/Bereiche (durch Komma oder Zeilenumbruch getrennt)"
+                    "dhcp_ip_ranges": "IP-Adressen/Bereiche (durch Komma oder Zeilenumbruch getrennt)",
+                    "test_dhcp": "DHCP-Verbindung testen"
                 },
                 "description": "Aktivieren Sie die DHCP-Geräteverfolgung, um Geräte zu überwachen, die mit Ihrem Technitium DHCP-Server verbunden sind. Verwenden Sie IP-Filterung, um zu steuern, welche Geräte basierend auf ihren IP-Adressen verfolgt werden.",
                 "title": "TechnitiumDNS-Optionen"
+            },
+            "dhcp_test": {
+                "data": {
+                    "dhcp_test_results": "DHCP-Testergebnisse"
+                },
+                "description": "Ergebnisse des DHCP-Verbindungstests. Dies zeigt alle verfügbaren DHCP-Leases von Ihrem Technitium DNS-Server.",
+                "title": "DHCP-Verbindungstest-Ergebnisse"
             }
+        },
+        "error": {
+            "dhcp_error": "DHCP-API hat einen Fehler zurückgegeben. Überprüfen Sie Ihre Technitium DNS-Server-Konfiguration.",
+            "dhcp_connection_failed": "Verbindung zur DHCP-API fehlgeschlagen. Überprüfen Sie Ihre Server-URL und den Token."
         }
     }
 }

@@ -31,11 +31,23 @@
                     "enable_dhcp_tracking": "Enable DHCP Device Tracking",
                     "dhcp_update_interval": "DHCP Update Interval (seconds)",
                     "dhcp_ip_filter_mode": "IP Filter Mode",
-                    "dhcp_ip_ranges": "IP Addresses/Ranges (comma or newline separated)"
+                    "dhcp_ip_ranges": "IP Addresses/Ranges (comma or newline separated)",
+                    "test_dhcp": "Test DHCP Connection"
                 },
                 "description": "Enable DHCP device tracking to monitor devices connected to your Technitium DHCP server. Use IP filtering to control which devices are tracked based on their IP addresses.",
                 "title": "TechnitiumDNS Options"
+            },
+            "dhcp_test": {
+                "data": {
+                    "dhcp_test_results": "DHCP Test Results"
+                },
+                "description": "Results of the DHCP connection test. This shows all available DHCP leases from your Technitium DNS server.",
+                "title": "DHCP Connection Test Results"
             }
+        },
+        "error": {
+            "dhcp_error": "DHCP API returned an error. Check your Technitium DNS server configuration.",
+            "dhcp_connection_failed": "Failed to connect to DHCP API. Verify your server URL and token."
         }
     }
 }

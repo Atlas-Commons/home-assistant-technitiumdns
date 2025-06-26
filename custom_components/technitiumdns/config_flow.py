@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import json
 from homeassistant import config_entries
 from homeassistant.core import callback
 from homeassistant.helpers import aiohttp_client
@@ -109,7 +110,13 @@ class TechnitiumDNSOptionsFlowHandler(config_entries.OptionsFlow):
     async def async_step_init(self, user_input=None):
         """Manage the options."""
         if user_input is not None:
-            return self.async_create_entry(title="", data=user_input)
+            # Check if test DHCP button was clicked
+            if user_input.get("test_dhcp"):
+                return await self.async_step_dhcp_test()
+            
+            # Remove test_dhcp from user_input before saving
+            data_to_save = {k: v for k, v in user_input.items() if k != "test_dhcp"}
+            return self.async_create_entry(title="", data=data_to_save)
 
         options_schema = vol.Schema({
             vol.Optional(
@@ -128,6 +135,7 @@ class TechnitiumDNSOptionsFlowHandler(config_entries.OptionsFlow):
                 "dhcp_ip_ranges",
                 default=self.config_entry.options.get("dhcp_ip_ranges", "")
             ): str,
+            vol.Optional("test_dhcp", default=False): bool,
         })
 
         return self.async_show_form(
@@ -135,5 +143,69 @@ class TechnitiumDNSOptionsFlowHandler(config_entries.OptionsFlow):
             data_schema=options_schema,
             description_placeholders={
                 "dhcp_description": "Enable DHCP device tracking to monitor devices connected to your Technitium DHCP server. Update interval determines how often device status is checked. Use IP filtering to control which devices are tracked based on their IP addresses."
+            }
+        )
+
+    async def async_step_dhcp_test(self, user_input=None):
+        """Test DHCP connection and display results."""
+        if user_input is not None:
+            # User clicked back or save, return to main options
+            return await self.async_step_init()
+
+        errors = {}
+        dhcp_results = ""
+        
+        try:
+            # Get API instance from config entry data
+            from .api import TechnitiumDNSApi
+            
+            config_data = self.config_entry.data
+            api = TechnitiumDNSApi(config_data["api_url"], config_data["token"])
+            
+            # Test DHCP connection
+            dhcp_response = await api.get_dhcp_leases()
+            
+            if dhcp_response.get("status") == "ok":
+                leases = dhcp_response.get("response", {}).get("leases", [])
+                
+                if leases:
+                    dhcp_results = f"✅ Successfully retrieved {len(leases)} DHCP leases:\n\n"
+                    
+                    for i, lease in enumerate(leases[:20], 1):  # Show first 20 leases
+                        dhcp_results += f"Device {i}:\n"
+                        dhcp_results += f"  IP: {lease.get('address', 'N/A')}\n"
+                        dhcp_results += f"  MAC: {lease.get('hardwareAddress', 'N/A')}\n"
+                        dhcp_results += f"  Hostname: {lease.get('hostName', 'N/A')}\n"
+                        dhcp_results += f"  Type: {lease.get('type', 'N/A')}\n"
+                        dhcp_results += f"  Status: {lease.get('addressStatus', 'N/A')}\n"
+                        dhcp_results += f"  Scope: {lease.get('scope', 'N/A')}\n"
+                        if lease.get('leaseExpires'):
+                            dhcp_results += f"  Expires: {lease.get('leaseExpires')}\n"
+                        dhcp_results += "\n"
+                    
+                    if len(leases) > 20:
+                        dhcp_results += f"... and {len(leases) - 20} more leases\n"
+                        
+                    dhcp_results += f"\nRaw API Response:\n{json.dumps(dhcp_response, indent=2)}"
+                else:
+                    dhcp_results = "✅ DHCP API connection successful, but no leases found.\n\nThis could mean:\n- No devices are currently connected\n- DHCP server is not configured\n- DHCP scope is empty\n\nRaw API Response:\n" + json.dumps(dhcp_response, indent=2)
+            else:
+                dhcp_results = f"❌ DHCP API returned error status: {dhcp_response.get('status')}\n\nResponse: {json.dumps(dhcp_response, indent=2)}"
+                errors["base"] = "dhcp_error"
+                
+        except Exception as e:
+            dhcp_results = f"❌ Failed to retrieve DHCP leases:\n\nError: {str(e)}\n\nPlease check:\n- Technitium DNS server is running\n- API URL is correct\n- Token has DHCP access permissions\n- DHCP server is enabled in Technitium"
+            errors["base"] = "dhcp_connection_failed"
+
+        test_schema = vol.Schema({
+            vol.Optional("dhcp_test_results", default=dhcp_results): str,
+        })
+
+        return self.async_show_form(
+            step_id="dhcp_test",
+            data_schema=test_schema,
+            errors=errors,
+            description_placeholders={
+                "test_results": dhcp_results
             }
         )
