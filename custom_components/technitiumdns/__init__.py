@@ -13,6 +13,7 @@ _LOGGER = logging.getLogger(__name__)
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up TechnitiumDNS from a config entry."""
+    _LOGGER.info("Setting up TechnitiumDNS integration for entry %s", entry.entry_id)
     hass.data.setdefault(DOMAIN, {})
     api = TechnitiumDNSApi(entry.data["api_url"], entry.data["token"])
     
@@ -21,8 +22,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     
     # Add device_tracker if DHCP tracking is enabled
     dhcp_enabled = entry.options.get("enable_dhcp_tracking", False)
+    _LOGGER.info("DHCP tracking enabled: %s", dhcp_enabled)
     if dhcp_enabled:
         platforms.append("device_tracker")
+        _LOGGER.info("Added device_tracker platform to load list")
+    
+    _LOGGER.debug("Options: %s", entry.options)
+    _LOGGER.info("Platforms to load: %s", platforms)
     
     hass.data[DOMAIN][entry.entry_id] = {
         "api": api,
@@ -41,11 +47,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     )
 
     # Forward the setup to the appropriate platforms
+    _LOGGER.info("Starting platform setup for: %s", platforms)
     await hass.config_entries.async_forward_entry_setups(entry, platforms)
+    _LOGGER.info("All platforms setup completed successfully")
     
     # Set up options flow listener to handle configuration changes
     entry.async_on_unload(entry.add_update_listener(async_update_options))
     
+    _LOGGER.info("TechnitiumDNS integration setup completed for entry %s", entry.entry_id)
     return True
 
 async def async_update_options(hass: HomeAssistant, entry: ConfigEntry) -> None:
