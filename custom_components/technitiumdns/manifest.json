@@ -1,12 +1,13 @@
 {
   "domain": "technitiumdns",
-  "name": "TechnitiumDNS",
+  "name": "TechnitiumDNSdhcp",
   "codeowners": [
-    "@Amateur-God"
+    "@Amateur-God",
+    "@tamaygz"
   ],
   "config_flow": true,
   "dependencies": [],
-  "documentation": "https://github.com/Amateur-God/home-assistant-Technitiumdns",
+  "documentation": "https://github.com/tamaygz/home-assistant-technitiumdns",
   "integration_type": "device",
   "iot_class": "local_polling",
   "issue_tracker": "https://github.com/Amateur-God/home-assistant-Technitiumdns/issues",
