@@ -2,7 +2,8 @@
 from datetime import timedelta
 import logging
 
-from homeassistant.components.device_tracker import DeviceTrackerEntity, SourceType
+from homeassistant.components.device_tracker.config_entry import ScannerEntity
+from homeassistant.components.device_tracker.const import SourceType
 from homeassistant.helpers.update_coordinator import (
     DataUpdateCoordinator,
     UpdateFailed,
@@ -110,7 +111,7 @@ class TechnitiumDHCPCoordinator(DataUpdateCoordinator):
             raise UpdateFailed(f"Error fetching DHCP data: {err}") from err
 
 
-class TechnitiumDHCPDeviceTracker(CoordinatorEntity, DeviceTrackerEntity):
+class TechnitiumDHCPDeviceTracker(CoordinatorEntity, ScannerEntity):
     """Representation of a TechnitiumDNS DHCP device tracker."""
 
     def __init__(self, coordinator, lease_data, server_name, entry_id):
