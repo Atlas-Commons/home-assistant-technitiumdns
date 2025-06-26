@@ -24,7 +24,7 @@ class TechnitiumDNSConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     @staticmethod
     @callback
     def async_get_options_flow(config_entry):
-        return TechnitiumDNSOptionsFlowHandler(config_entry)
+        return TechnitiumDNSOptionsFlowHandler()
 
     async def async_step_user(self, user_input=None):
         """Handle the initial step."""
