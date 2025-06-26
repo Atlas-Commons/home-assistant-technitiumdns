@@ -1,4 +1,4 @@
-"""Config flow for TechnitiumDNS integration."""
+"""Config flow for TechnitiumDNSdhcp integration."""
 
 import asyncio
 import logging
@@ -16,7 +16,7 @@ from .api import TechnitiumDNSApi
 
 @config_entries.HANDLERS.register(DOMAIN)
 class TechnitiumDNSConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
-    """Handle a config flow for TechnitiumDNS."""
+    """Handle a config flow for TechnitiumDNSdhcp."""
 
     VERSION = 2
 
@@ -105,9 +105,6 @@ class TechnitiumDNSConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
 class TechnitiumDNSOptionsFlowHandler(config_entries.OptionsFlow):
     """Handle an options flow for TechnitiumDNS."""
-
-    def __init__(self, config_entry):
-        self.config_entry = config_entry
 
     async def async_step_init(self, user_input=None):
         """Manage the options."""

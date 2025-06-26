@@ -1,6 +1,6 @@
-"""Constants for the TechnitiumDNS integration."""
+"""Constants for the TechnitiumDNSdhcp integration."""
 
-DOMAIN = "technitiumdns"
+DOMAIN = "technitiumdnsdhcp"
 
 DURATION_OPTIONS = ["LastHour", "LastDay", "LastWeek", "LastMonth"]
 
