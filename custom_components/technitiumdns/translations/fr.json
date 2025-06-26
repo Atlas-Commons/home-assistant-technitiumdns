@@ -32,6 +32,8 @@
                     "dhcp_update_interval": "Intervalle de mise à jour DHCP (secondes)",
                     "dhcp_ip_filter_mode": "Mode de filtre IP",
                     "dhcp_ip_ranges": "Adresses IP/Plages (séparées par virgule ou nouvelle ligne)",
+                    "dhcp_log_tracking": "Activer le suivi des logs DNS",
+                    "dhcp_stale_threshold": "Seuil d'inactivité (minutes)",
                     "test_dhcp": "Tester la connexion DHCP"
                 },
                 "description": "Activez le suivi des appareils DHCP pour surveiller les appareils connectés à votre serveur DHCP Technitium. Utilisez le filtrage IP pour contrôler quels appareils sont suivis en fonction de leurs adresses IP.",

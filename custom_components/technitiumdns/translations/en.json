@@ -32,6 +32,8 @@
                     "dhcp_update_interval": "DHCP Update Interval (seconds)",
                     "dhcp_ip_filter_mode": "IP Filter Mode",
                     "dhcp_ip_ranges": "IP Addresses/Ranges (comma or newline separated)",
+                    "dhcp_log_tracking": "Enable DNS Log Tracking",
+                    "dhcp_stale_threshold": "Staleness Threshold (minutes)",
                     "test_dhcp": "Test DHCP Connection"
                 },
                 "description": "Enable DHCP device tracking to monitor devices connected to your Technitium DHCP server. Use IP filtering to control which devices are tracked based on their IP addresses.",

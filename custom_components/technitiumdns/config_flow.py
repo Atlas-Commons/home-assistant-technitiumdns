@@ -11,7 +11,16 @@ import async_timeout
 import contextlib
 import voluptuous as vol
 
-from .const import DOMAIN, DHCP_UPDATE_INTERVAL_OPTIONS, DHCP_IP_FILTER_MODES
+from .const import (
+    DOMAIN, 
+    DHCP_UPDATE_INTERVAL_OPTIONS, 
+    DHCP_IP_FILTER_MODES,
+    DHCP_STALE_THRESHOLD_OPTIONS,
+    DEFAULT_DHCP_LOG_TRACKING,
+    DEFAULT_DHCP_STALE_THRESHOLD,
+    CONF_DHCP_LOG_TRACKING,
+    CONF_DHCP_STALE_THRESHOLD
+)
 from .api import TechnitiumDNSApi
 
 
@@ -141,6 +150,14 @@ class TechnitiumDNSOptionsFlowHandler(config_entries.OptionsFlow):
                 "dhcp_ip_ranges",
                 default=self.config_entry.options.get("dhcp_ip_ranges", "")
             ): str,
+            vol.Optional(
+                CONF_DHCP_LOG_TRACKING,
+                default=self.config_entry.options.get(CONF_DHCP_LOG_TRACKING, DEFAULT_DHCP_LOG_TRACKING)
+            ): bool,
+            vol.Optional(
+                CONF_DHCP_STALE_THRESHOLD,
+                default=self.config_entry.options.get(CONF_DHCP_STALE_THRESHOLD, DEFAULT_DHCP_STALE_THRESHOLD)
+            ): vol.In(list(DHCP_STALE_THRESHOLD_OPTIONS.keys())),
             vol.Optional("test_dhcp", default=False): bool,
         })
 

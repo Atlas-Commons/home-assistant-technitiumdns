@@ -1,5 +1,5 @@
 """Support for TechnitiumDNS DHCP device tracking."""
-from datetime import timedelta
+from datetime import timedelta, datetime
 import logging
 
 from homeassistant.components.device_tracker.config_entry import ScannerEntity
@@ -12,7 +12,13 @@ from homeassistant.helpers.update_coordinator import (
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.exceptions import ConfigEntryNotReady
 
-from .const import DOMAIN
+from .const import (
+    DOMAIN, 
+    CONF_DHCP_LOG_TRACKING, 
+    CONF_DHCP_STALE_THRESHOLD, 
+    DEFAULT_DHCP_LOG_TRACKING,
+    DEFAULT_DHCP_STALE_THRESHOLD
+)
 from .api import TechnitiumDNSApi
 from .utils import should_track_ip
 
@@ -37,10 +43,16 @@ async def async_setup_entry(hass, entry, async_add_entities):
         ip_filter_mode = entry.options.get("dhcp_ip_filter_mode", "disabled")
         ip_ranges = entry.options.get("dhcp_ip_ranges", "")
         
-        _LOGGER.info("DHCP tracking configuration: interval=%s seconds, filter_mode=%s, ip_ranges=%s", 
-                    update_interval, ip_filter_mode, ip_ranges)
+        # Get DNS log tracking options
+        log_tracking = entry.options.get(CONF_DHCP_LOG_TRACKING, DEFAULT_DHCP_LOG_TRACKING)
+        stale_threshold = entry.options.get(CONF_DHCP_STALE_THRESHOLD, DEFAULT_DHCP_STALE_THRESHOLD)
         
-        coordinator = TechnitiumDHCPCoordinator(hass, api, update_interval, ip_filter_mode, ip_ranges)
+        _LOGGER.info("DHCP tracking configuration: interval=%s seconds, filter_mode=%s, ip_ranges=%s, log_tracking=%s, stale_threshold=%s min", 
+                    update_interval, ip_filter_mode, ip_ranges, log_tracking, stale_threshold)
+        
+        coordinator = TechnitiumDHCPCoordinator(
+            hass, api, update_interval, ip_filter_mode, ip_ranges, log_tracking, stale_threshold
+        )
         _LOGGER.debug("Created TechnitiumDHCPCoordinator: %s", coordinator)
         
         _LOGGER.info("Performing initial DHCP data refresh...")
@@ -72,13 +84,16 @@ async def async_setup_entry(hass, entry, async_add_entities):
 class TechnitiumDHCPCoordinator(DataUpdateCoordinator):
     """Class to manage fetching TechnitiumDNS DHCP data."""
 
-    def __init__(self, hass, api, update_interval, ip_filter_mode="disabled", ip_ranges=""):
+    def __init__(self, hass, api, update_interval, ip_filter_mode="disabled", ip_ranges="", 
+                 log_tracking=False, stale_threshold=60):
         """Initialize."""
-        _LOGGER.info("Initializing TechnitiumDHCPCoordinator with interval=%s, filter_mode=%s", 
-                    update_interval, ip_filter_mode)
+        _LOGGER.info("Initializing TechnitiumDHCPCoordinator with interval=%s, filter_mode=%s, log_tracking=%s, stale_threshold=%s", 
+                    update_interval, ip_filter_mode, log_tracking, stale_threshold)
         self.api = api
         self.ip_filter_mode = ip_filter_mode
         self.ip_ranges = ip_ranges
+        self.log_tracking = log_tracking
+        self.stale_threshold_minutes = stale_threshold
         scan_interval = timedelta(seconds=update_interval)
         _LOGGER.debug("Setting coordinator update interval to %s", scan_interval)
         super().__init__(hass, _LOGGER, name=f"{DOMAIN}_dhcp", update_interval=scan_interval)
@@ -162,6 +177,9 @@ class TechnitiumDHCPCoordinator(DataUpdateCoordinator):
                         "lease_obtained": lease.get("leaseObtained"),
                         "scope": lease.get("scope", ""),
                         "type": lease_type,
+                        "last_seen": None,  # Will be populated by DNS log query
+                        "is_stale": False,  # Will be calculated based on last_seen
+                        "minutes_since_seen": 0,  # Minutes since last DNS activity
                     }
                     processed_leases.append(processed_lease)
                     _LOGGER.debug("Added lease for tracking: IP=%s, MAC=%s, hostname=%s, type=%s", 
@@ -170,6 +188,15 @@ class TechnitiumDHCPCoordinator(DataUpdateCoordinator):
                 else:
                     _LOGGER.debug("Skipping lease: %s", skip_reason)
                     skipped_count += 1
+            
+            # Query DNS logs for last seen times if enabled
+            processed_leases = await self._get_last_seen_for_devices(processed_leases)
+            
+            # Log stale device summary if log tracking is enabled
+            if self.log_tracking:
+                stale_count = sum(1 for lease in processed_leases if lease.get("is_stale", False))
+                _LOGGER.info("DNS activity summary: %d devices total, %d are stale (>%d min since last seen)", 
+                           len(processed_leases), stale_count, self.stale_threshold_minutes)
             
             _LOGGER.info("DHCP data processing complete: %d active leases, %d filtered, %d skipped", 
                         len(processed_leases), filtered_count, skipped_count)
@@ -184,6 +211,72 @@ class TechnitiumDHCPCoordinator(DataUpdateCoordinator):
         except Exception as err:
             _LOGGER.error("Error fetching DHCP data: %s", err, exc_info=True)
             raise UpdateFailed(f"Error fetching DHCP data: {err}") from err
+
+    async def _get_last_seen_for_devices(self, processed_leases):
+        """Query DNS logs to get last seen times for devices using batch processing."""
+        if not self.log_tracking:
+            _LOGGER.debug("DNS log tracking disabled, skipping last seen queries")
+            return processed_leases
+            
+        # Extract all IP addresses for batch query
+        ip_addresses = []
+        ip_to_lease_map = {}
+        
+        for lease in processed_leases:
+            ip_address = lease.get("ip_address")
+            if ip_address:
+                ip_addresses.append(ip_address)
+                # Map IP to lease for easier lookup
+                ip_to_lease_map[ip_address] = lease
+        
+        if not ip_addresses:
+            _LOGGER.debug("No IP addresses to query for DNS logs")
+            return processed_leases
+            
+        _LOGGER.info("Performing batch DNS log query for %d devices", len(ip_addresses))
+        
+        try:
+            # Single batch call to get last seen times for all devices
+            last_seen_times = await self.api.get_last_seen_for_multiple_ips(ip_addresses, hours_back=48)
+            
+            # Update all leases with the results
+            for ip_address, lease in ip_to_lease_map.items():
+                last_seen = last_seen_times.get(ip_address)
+                
+                if last_seen:
+                    lease["last_seen"] = last_seen
+                    _LOGGER.debug("Device %s last seen at %s", ip_address, last_seen)
+                    
+                    # Calculate if device is stale
+                    try:
+                        last_seen_dt = datetime.fromisoformat(last_seen.replace('Z', '+00:00'))
+                        now = datetime.now(last_seen_dt.tzinfo)
+                        minutes_since_seen = (now - last_seen_dt).total_seconds() / 60
+                        lease["is_stale"] = minutes_since_seen > self.stale_threshold_minutes
+                        lease["minutes_since_seen"] = int(minutes_since_seen)
+                        _LOGGER.debug("Device %s: %d minutes since last seen, stale=%s", 
+                                    ip_address, int(minutes_since_seen), lease["is_stale"])
+                    except Exception as e:
+                        _LOGGER.debug("Error parsing last seen time for %s: %s", ip_address, e)
+                        lease["is_stale"] = False
+                        lease["minutes_since_seen"] = 0
+                else:
+                    _LOGGER.debug("No DNS log entries found for device %s", ip_address)
+                    lease["last_seen"] = None
+                    lease["is_stale"] = True  # No DNS activity = stale
+                    lease["minutes_since_seen"] = 9999
+            
+            _LOGGER.info("Batch DNS log processing completed successfully for %d devices", len(ip_addresses))
+            
+        except Exception as e:
+            _LOGGER.error("Error in batch DNS log query: %s", e, exc_info=True)
+            # Fall back to marking all devices as not stale on error
+            for lease in processed_leases:
+                lease["last_seen"] = None
+                lease["is_stale"] = False
+                lease["minutes_since_seen"] = 0
+        
+        return processed_leases
 
 
 class TechnitiumDHCPDeviceTracker(CoordinatorEntity, ScannerEntity):
@@ -238,8 +331,15 @@ class TechnitiumDHCPDeviceTracker(CoordinatorEntity, ScannerEntity):
             
         for lease in self.coordinator.data:
             if lease.get("mac_address") == self._mac_address:
-                _LOGGER.debug("Device %s: found active lease - marking as connected", self._name)
-                return True
+                # If DNS log tracking is enabled, consider staleness
+                if lease.get("is_stale") is not None:
+                    is_stale = lease.get("is_stale", False)
+                    _LOGGER.debug("Device %s: found lease, is_stale=%s - marking as %s", 
+                                self._name, is_stale, "disconnected" if is_stale else "connected")
+                    return not is_stale
+                else:
+                    _LOGGER.debug("Device %s: found active lease (no staleness check) - marking as connected", self._name)
+                    return True
         
         _LOGGER.debug("Device %s: no active lease found - marking as disconnected", self._name)
         return False
@@ -290,7 +390,17 @@ class TechnitiumDHCPDeviceTracker(CoordinatorEntity, ScannerEntity):
                         "lease_expires": lease.get("lease_expires", ""),
                         "lease_obtained": lease.get("lease_obtained", ""),
                         "scope": lease.get("scope", ""),
+                        "lease_type": lease.get("type", ""),
                     })
+                    
+                    # Add DNS log tracking attributes if available
+                    if lease.get("last_seen") is not None:
+                        attributes.update({
+                            "last_seen": lease.get("last_seen"),
+                            "is_stale": lease.get("is_stale", False),
+                            "minutes_since_seen": lease.get("minutes_since_seen", 0),
+                            "stale_threshold_minutes": self.coordinator.stale_threshold_minutes,
+                        })
                     break
         
         return attributes

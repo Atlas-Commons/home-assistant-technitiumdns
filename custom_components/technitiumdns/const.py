@@ -20,7 +20,7 @@ CONF_DHCP_UPDATE_INTERVAL = "dhcp_update_interval"
 CONF_DHCP_IP_FILTER_MODE = "dhcp_ip_filter_mode"
 CONF_DHCP_IP_RANGES = "dhcp_ip_ranges"
 
-DHCP_UPDATE_INTERVAL_OPTIONS = [30, 60, 300, 600]  # seconds
+DHCP_UPDATE_INTERVAL_OPTIONS = [30, 60, 180, 300, 600]  # seconds
 
 # IP Filter modes
 DHCP_IP_FILTER_MODES = {
@@ -51,4 +51,25 @@ SENSOR_TYPES = {
     "top_clients": {"name": "Top Clients", "state_class": None, "device_class": None},
     "top_domains": {"name": "Top Domains", "state_class": None, "device_class": None},
     "top_blocked_domains": {"name": "Top Blocked Domains", "state_class": None, "device_class": None},
+}
+
+# DNS Log tracking options
+CONF_DHCP_LOG_TRACKING = "dhcp_log_tracking"
+CONF_DHCP_STALE_THRESHOLD = "dhcp_stale_threshold"
+
+# Default values for new options
+DEFAULT_DHCP_LOG_TRACKING = False
+DEFAULT_DHCP_STALE_THRESHOLD = 60  # minutes
+
+# Stale threshold options (in minutes)
+DHCP_STALE_THRESHOLD_OPTIONS = {
+    5: "5 minutes",
+    15: "15 minutes",
+    30: "30 minutes", 
+    60: "1 hour",
+    120: "2 hours",
+    240: "4 hours",
+    480: "8 hours",
+    720: "12 hours",
+    1440: "24 hours"
 }
