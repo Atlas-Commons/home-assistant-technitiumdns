@@ -15,10 +15,20 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up TechnitiumDNS from a config entry."""
     hass.data.setdefault(DOMAIN, {})
     api = TechnitiumDNSApi(entry.data["api_url"], entry.data["token"])
+    
+    # Determine which platforms to load based on options
+    platforms = ["sensor", "button", "switch"]
+    
+    # Add device_tracker if DHCP tracking is enabled
+    dhcp_enabled = entry.options.get("enable_dhcp_tracking", False)
+    if dhcp_enabled:
+        platforms.append("device_tracker")
+    
     hass.data[DOMAIN][entry.entry_id] = {
         "api": api,
         "server_name": entry.data["server_name"],
         "stats_duration": entry.data["stats_duration"],
+        "loaded_platforms": platforms,  # Track which platforms were actually loaded
     }
 
     device_registry = dr.async_get(hass)
@@ -29,13 +39,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         name=entry.data["server_name"],
         model="DNS Server",
     )
-
-    # Determine which platforms to load based on options
-    platforms = ["sensor", "button", "switch"]
-    
-    # Add device_tracker if DHCP tracking is enabled
-    if entry.options.get("enable_dhcp_tracking", False):
-        platforms.append("device_tracker")
 
     # Forward the setup to the appropriate platforms
     await hass.config_entries.async_forward_entry_setups(entry, platforms)
@@ -51,12 +54,20 @@ async def async_update_options(hass: HomeAssistant, entry: ConfigEntry) -> None:
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
-    platforms = ["sensor", "button", "switch"]
-    
-    # Add device_tracker if DHCP tracking was enabled
-    if entry.options.get("enable_dhcp_tracking", False):
-        platforms.append("device_tracker")
+    try:
+        # Get the platforms that were actually loaded during setup
+        entry_data = hass.data[DOMAIN].get(entry.entry_id, {})
+        platforms = entry_data.get("loaded_platforms", ["sensor", "button", "switch"])
         
-    await hass.config_entries.async_unload_platforms(entry, platforms)
-    hass.data[DOMAIN].pop(entry.entry_id)
-    return True
+        # Only unload platforms that were actually loaded
+        if platforms:
+            await hass.config_entries.async_unload_platforms(entry, platforms)
+        
+        hass.data[DOMAIN].pop(entry.entry_id, None)
+        return True
+        
+    except Exception as e:
+        _LOGGER.error("Error unloading TechnitiumDNS integration: %s", e)
+        # Still try to clean up data even if platform unload failed
+        hass.data[DOMAIN].pop(entry.entry_id, None)
+        return True
