@@ -23,5 +23,19 @@
       "already_configured": "[%key:common::config_flow::abort::already_configured_service%]",
       "reauth_successful": "[%key:common::config_flow::abort::reauth_successful%]"
     }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "data": {
+          "enable_dhcp_tracking": "Enable DHCP Device Tracking",
+          "dhcp_update_interval": "DHCP Update Interval (seconds)",
+          "dhcp_ip_filter_mode": "IP Filter Mode", 
+          "dhcp_ip_ranges": "IP Addresses/Ranges (comma or newline separated)"
+        },
+        "description": "{dhcp_description}",
+        "title": "TechnitiumDNS Options"
+      }
+    }
   }
 }

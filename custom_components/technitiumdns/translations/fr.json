@@ -23,5 +23,19 @@
                 "title": "Configurer TechnitiumDNS"
             }
         }
+    },
+    "options": {
+        "step": {
+            "init": {
+                "data": {
+                    "enable_dhcp_tracking": "Activer le suivi des appareils DHCP",
+                    "dhcp_update_interval": "Intervalle de mise à jour DHCP (secondes)",
+                    "dhcp_ip_filter_mode": "Mode de filtre IP",
+                    "dhcp_ip_ranges": "Adresses IP/Plages (séparées par virgule ou nouvelle ligne)"
+                },
+                "description": "Activez le suivi des appareils DHCP pour surveiller les appareils connectés à votre serveur DHCP Technitium. Utilisez le filtrage IP pour contrôler quels appareils sont suivis en fonction de leurs adresses IP.",
+                "title": "Options TechnitiumDNS"
+            }
+        }
     }
 }

@@ -113,3 +113,11 @@ class TechnitiumDNSApi:
             except Exception as e:
                 _LOGGER.error("An error occurred: %s", e)
                 raise Exception(f"An error occurred: {e}") from e
+
+    async def get_dhcp_leases(self):
+        """Get DHCP leases from the API."""
+        return await self.fetch_data("api/dhcp/leases/list")
+
+    async def get_dhcp_scopes(self):
+        """Get DHCP scopes from the API."""
+        return await self.fetch_data("api/dhcp/scopes/list")

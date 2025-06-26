@@ -14,6 +14,21 @@ AD_BLOCKING_DURATION_OPTIONS = {
     1440: "Disable Ad Blocking for 1 Day",
 }
 
+# DHCP Device Tracking Options
+CONF_ENABLE_DHCP_TRACKING = "enable_dhcp_tracking"
+CONF_DHCP_UPDATE_INTERVAL = "dhcp_update_interval"
+CONF_DHCP_IP_FILTER_MODE = "dhcp_ip_filter_mode"
+CONF_DHCP_IP_RANGES = "dhcp_ip_ranges"
+
+DHCP_UPDATE_INTERVAL_OPTIONS = [30, 60, 300, 600]  # seconds
+
+# IP Filter modes
+DHCP_IP_FILTER_MODES = {
+    "disabled": "No IP filtering",
+    "include": "Include only specified IPs/ranges",
+    "exclude": "Exclude specified IPs/ranges"
+}
+
 SENSOR_TYPES = {
     "queries": {"name": "Total Queries", "state_class": "measurement", "device_class": "count"},
     "blocked_queries": {"name": "Blocked Queries", "state_class": "measurement", "device_class": "count"},
