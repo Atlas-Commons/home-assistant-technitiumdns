@@ -102,7 +102,16 @@ async def async_register_services(hass: HomeAssistant):
                             config_entry_id, dhcp_coordinator is not None, 
                             dhcp_coordinator.data is not None if dhcp_coordinator else False)
                 if dhcp_coordinator and dhcp_coordinator.data:
-                    current_macs = {lease.get("mac_address") for lease in dhcp_coordinator.data if lease.get("mac_address")}
+                    # Normalize MAC addresses to uppercase with colons for consistent comparison
+                    current_macs = set()
+                    for lease in dhcp_coordinator.data:
+                        mac = lease.get("mac_address")
+                        if mac:
+                            # Normalize MAC format to uppercase with colons
+                            normalized_mac = mac.upper().replace('-', ':')
+                            if len(normalized_mac) == 12:  # No separators
+                                normalized_mac = ':'.join([normalized_mac[i:i+2] for i in range(0, 12, 2)])
+                            current_macs.add(normalized_mac)
                     _LOGGER.debug("Found %d current MAC addresses for entry %s: %s", 
                                 len(current_macs), config_entry_id, sorted(current_macs))
                     await async_cleanup_orphaned_entities(hass, config_entry_id, current_macs)
@@ -131,7 +140,16 @@ async def async_register_services(hass: HomeAssistant):
                             entry_id, dhcp_coordinator is not None, 
                             dhcp_coordinator.data is not None if dhcp_coordinator else False)
                 if dhcp_coordinator and dhcp_coordinator.data:
-                    current_macs = {lease.get("mac_address") for lease in dhcp_coordinator.data if lease.get("mac_address")}
+                    # Normalize MAC addresses to uppercase with colons for consistent comparison
+                    current_macs = set()
+                    for lease in dhcp_coordinator.data:
+                        mac = lease.get("mac_address")
+                        if mac:
+                            # Normalize MAC format to uppercase with colons
+                            normalized_mac = mac.upper().replace('-', ':')
+                            if len(normalized_mac) == 12:  # No separators
+                                normalized_mac = ':'.join([normalized_mac[i:i+2] for i in range(0, 12, 2)])
+                            current_macs.add(normalized_mac)
                     _LOGGER.debug("Found %d current MAC addresses for entry %s: %s", 
                                 len(current_macs), entry_id, sorted(current_macs))
                     await async_cleanup_orphaned_entities(hass, entry_id, current_macs)
@@ -344,29 +362,42 @@ async def async_cleanup_orphaned_entities(hass: HomeAssistant, entry_id: str, cu
                 # Extract MAC address from unique_id
                 mac_from_entity = None
                 if "dhcp_device_" in str(entity.unique_id):
-                    # Device tracker format: dhcp_device_{mac_clean}
+                    # Device tracker format: dhcp_device_{mac_address}
                     parts = str(entity.unique_id).split("dhcp_device_")
                     if len(parts) > 1:
-                        mac_clean = parts[1].split("_")[0]  # Handle sensor suffixes
-                        _LOGGER.debug("Extracted MAC clean from device tracker: %s", mac_clean)
-                        # Convert back to MAC format (add colons)
-                        if len(mac_clean) == 12:
-                            mac_from_entity = ":".join([mac_clean[i:i+2] for i in range(0, 12, 2)]).upper()
-                            _LOGGER.debug("Converted to MAC address: %s", mac_from_entity)
+                        mac_raw = parts[1].split("_")[0]  # Handle any suffixes
+                        _LOGGER.debug("Extracted MAC raw from device tracker: %s", mac_raw)
+                        
+                        # Handle different MAC formats and normalize to uppercase with colons
+                        if len(mac_raw) == 12:
+                            # Format: aabbccddeeff (no separators)
+                            mac_from_entity = ":".join([mac_raw[i:i+2] for i in range(0, 12, 2)]).upper()
+                            _LOGGER.debug("Converted MAC (no separators) to: %s", mac_from_entity)
+                        elif len(mac_raw) == 17 and ("-" in mac_raw or ":" in mac_raw):
+                            # Format: aa-bb-cc-dd-ee-ff or aa:bb:cc:dd:ee:ff  
+                            mac_from_entity = mac_raw.replace("-", ":").upper()
+                            _LOGGER.debug("Converted MAC (with separators) to: %s", mac_from_entity)
                         else:
-                            _LOGGER.debug("Invalid MAC clean length: %d (expected 12)", len(mac_clean))
+                            _LOGGER.debug("Invalid MAC format: %s (length: %d)", mac_raw, len(mac_raw))
                 
                 elif "technitiumdns_dhcp_" in str(entity.unique_id):
-                    # Sensor format: technitiumdns_dhcp_{mac_clean}_{sensor_type}
+                    # Sensor format: technitiumdns_dhcp_{mac_address}_{sensor_type}
                     parts = str(entity.unique_id).split("technitiumdns_dhcp_")
                     if len(parts) > 1:
-                        mac_clean = parts[1].split("_")[0]
-                        _LOGGER.debug("Extracted MAC clean from sensor: %s", mac_clean)
-                        if len(mac_clean) == 12:
-                            mac_from_entity = ":".join([mac_clean[i:i+2] for i in range(0, 12, 2)]).upper()
-                            _LOGGER.debug("Converted to MAC address: %s", mac_from_entity)
+                        mac_raw = parts[1].split("_")[0]  # Get MAC part before any sensor suffix
+                        _LOGGER.debug("Extracted MAC raw from sensor: %s", mac_raw)
+                        
+                        # Handle different MAC formats and normalize to uppercase with colons
+                        if len(mac_raw) == 12:
+                            # Format: aabbccddeeff (no separators)
+                            mac_from_entity = ":".join([mac_raw[i:i+2] for i in range(0, 12, 2)]).upper()
+                            _LOGGER.debug("Converted MAC (no separators) to: %s", mac_from_entity)
+                        elif len(mac_raw) == 17 and ("-" in mac_raw or ":" in mac_raw):
+                            # Format: aa-bb-cc-dd-ee-ff or aa:bb:cc:dd:ee:ff
+                            mac_from_entity = mac_raw.replace("-", ":").upper()
+                            _LOGGER.debug("Converted MAC (with separators) to: %s", mac_from_entity)
                         else:
-                            _LOGGER.debug("Invalid MAC clean length: %d (expected 12)", len(mac_clean))
+                            _LOGGER.debug("Invalid MAC format: %s (length: %d)", mac_raw, len(mac_raw))
                 
                 # Check if this device should still exist
                 if mac_from_entity:

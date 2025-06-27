@@ -14,6 +14,12 @@ This directory contains detailed documentation for the TechnitiumDNS Home Assist
 - **[SERVICE_IMPLEMENTATION.md](SERVICE_IMPLEMENTATION.md)** - Available Home Assistant services and API access
 - **[SERVICE_TROUBLESHOOTING.md](SERVICE_TROUBLESHOOTING.md)** - Troubleshooting guide for service issues
 
+### Enhancement Summaries
+- **[DEBUG_LOGGING_ENHANCEMENT.md](DEBUG_LOGGING_ENHANCEMENT.md)** - Comprehensive debug logging improvements
+- **[SERVICE_ADDITION_SUMMARY.md](SERVICE_ADDITION_SUMMARY.md)** - Summary of new Home Assistant services
+- **[TROUBLESHOOTING_ENHANCEMENT_SUMMARY.md](TROUBLESHOOTING_ENHANCEMENT_SUMMARY.md)** - Troubleshooting documentation improvements
+- **[MAC_ADDRESS_FIX_SUMMARY.md](MAC_ADDRESS_FIX_SUMMARY.md)** - MAC address normalization fix for cleanup service
+
 ### Migration & Updates
 - **[MIGRATION_GUIDE.md](MIGRATION_GUIDE.md)** - Guide for migrating from older versions
 
