@@ -1,4 +1,4 @@
-"""Constants for the TechnitiumDNSdhcp integration."""
+"""Constants for the TechnitiumDNS integration."""
 
 DOMAIN = "technitiumdns"
 

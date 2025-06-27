@@ -1,4 +1,4 @@
-"""Config flow for TechnitiumDNSdhcp integration."""
+"""Config flow for TechnitiumDNS integration."""
 
 import asyncio
 import logging
@@ -34,7 +34,7 @@ from .api import TechnitiumDNSApi
 
 @config_entries.HANDLERS.register(DOMAIN)
 class TechnitiumDNSConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
-    """Handle a config flow for TechnitiumDNSdhcp."""
+    """Handle a config flow for TechnitiumDNS."""
 
     VERSION = 2
 
