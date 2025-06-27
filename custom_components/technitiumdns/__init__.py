@@ -10,6 +10,7 @@ from homeassistant.helpers import device_registry as dr, entity_registry as er
 import homeassistant.helpers.config_validation as cv
 
 from .const import DOMAIN
+from .utils import normalize_mac_address
 from .api import TechnitiumDNSApi
 
 _LOGGER = logging.getLogger(__name__)
@@ -107,14 +108,7 @@ async def async_register_services(hass: HomeAssistant):
                     for lease in dhcp_coordinator.data:
                         mac = lease.get("mac_address")
                         if mac:
-                            # Normalize MAC format to uppercase with colons
-                            mac_upper = mac.upper()
-                            if len(mac_upper) == 12:  # No separators: AABBCCDDEEFF
-                                normalized_mac = ':'.join([mac_upper[i:i+2] for i in range(0, 12, 2)])
-                            elif len(mac_upper) == 17:  # With separators: AA-BB-CC-DD-EE-FF or AA:BB:CC:DD:EE:FF
-                                normalized_mac = mac_upper.replace('-', ':')
-                            else:
-                                normalized_mac = mac_upper  # Keep as-is if unexpected format
+                            normalized_mac = normalize_mac_address(mac)
                             current_macs.add(normalized_mac)
                             _LOGGER.debug("Normalized MAC %s -> %s", mac, normalized_mac)
                     _LOGGER.debug("Found %d current MAC addresses for entry %s: %s", 
@@ -150,14 +144,7 @@ async def async_register_services(hass: HomeAssistant):
                     for lease in dhcp_coordinator.data:
                         mac = lease.get("mac_address")
                         if mac:
-                            # Normalize MAC format to uppercase with colons
-                            mac_upper = mac.upper()
-                            if len(mac_upper) == 12:  # No separators: AABBCCDDEEFF
-                                normalized_mac = ':'.join([mac_upper[i:i+2] for i in range(0, 12, 2)])
-                            elif len(mac_upper) == 17:  # With separators: AA-BB-CC-DD-EE-FF or AA:BB:CC:DD:EE:FF
-                                normalized_mac = mac_upper.replace('-', ':')
-                            else:
-                                normalized_mac = mac_upper  # Keep as-is if unexpected format
+                            normalized_mac = normalize_mac_address(mac)
                             current_macs.add(normalized_mac)
                             _LOGGER.debug("Normalized MAC %s -> %s", mac, normalized_mac)
                     _LOGGER.debug("Found %d current MAC addresses for entry %s: %s", 
@@ -378,17 +365,9 @@ async def async_cleanup_orphaned_entities(hass: HomeAssistant, entry_id: str, cu
                         mac_raw = parts[1].split("_")[0]  # Handle any suffixes
                         _LOGGER.debug("Extracted MAC raw from device tracker: %s", mac_raw)
                         
-                        # Handle different MAC formats and normalize to uppercase with colons
-                        if len(mac_raw) == 12:
-                            # Format: aabbccddeeff (no separators)
-                            mac_from_entity = ":".join([mac_raw[i:i+2] for i in range(0, 12, 2)]).upper()
-                            _LOGGER.debug("Converted MAC (no separators) to: %s", mac_from_entity)
-                        elif len(mac_raw) == 17 and ("-" in mac_raw or ":" in mac_raw):
-                            # Format: aa-bb-cc-dd-ee-ff or aa:bb:cc:dd:ee:ff  
-                            mac_from_entity = mac_raw.replace("-", ":").upper()
-                            _LOGGER.debug("Converted MAC (with separators) to: %s", mac_from_entity)
-                        else:
-                            _LOGGER.debug("Invalid MAC format: %s (length: %d)", mac_raw, len(mac_raw))
+                        # Normalize MAC address to uppercase with colons
+                        mac_from_entity = normalize_mac_address(mac_raw)
+                        _LOGGER.debug("Normalized MAC %s -> %s", mac_raw, mac_from_entity)
                 
                 elif "technitiumdns_dhcp_" in str(entity.unique_id):
                     # Sensor format: technitiumdns_dhcp_{mac_address}_{sensor_type}
@@ -397,17 +376,9 @@ async def async_cleanup_orphaned_entities(hass: HomeAssistant, entry_id: str, cu
                         mac_raw = parts[1].split("_")[0]  # Get MAC part before any sensor suffix
                         _LOGGER.debug("Extracted MAC raw from sensor: %s", mac_raw)
                         
-                        # Handle different MAC formats and normalize to uppercase with colons
-                        if len(mac_raw) == 12:
-                            # Format: aabbccddeeff (no separators)
-                            mac_from_entity = ":".join([mac_raw[i:i+2] for i in range(0, 12, 2)]).upper()
-                            _LOGGER.debug("Converted MAC (no separators) to: %s", mac_from_entity)
-                        elif len(mac_raw) == 17 and ("-" in mac_raw or ":" in mac_raw):
-                            # Format: aa-bb-cc-dd-ee-ff or aa:bb:cc:dd:ee:ff
-                            mac_from_entity = mac_raw.replace("-", ":").upper()
-                            _LOGGER.debug("Converted MAC (with separators) to: %s", mac_from_entity)
-                        else:
-                            _LOGGER.debug("Invalid MAC format: %s (length: %d)", mac_raw, len(mac_raw))
+                        # Normalize MAC address to uppercase with colons
+                        mac_from_entity = normalize_mac_address(mac_raw)
+                        _LOGGER.debug("Normalized MAC %s -> %s", mac_raw, mac_from_entity)
                 
                 # Check if this device should still exist
                 if mac_from_entity:

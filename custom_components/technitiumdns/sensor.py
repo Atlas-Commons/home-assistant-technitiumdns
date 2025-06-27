@@ -12,6 +12,7 @@ from homeassistant.helpers.entity import DeviceInfo, EntityCategory
 from homeassistant.exceptions import ConfigEntryNotReady
 
 from .const import DOMAIN, SENSOR_TYPES
+from .utils import normalize_mac_address
 from .api import TechnitiumDNSApi
 
 _LOGGER = logging.getLogger(__name__)
@@ -274,20 +275,35 @@ class TechnitiumDHCPDeviceDiagnosticSensor(CoordinatorEntity, SensorEntity):
     def __init__(self, coordinator, mac_address, server_name, entry_id, sensor_type, device_name):
         """Initialize the diagnostic sensor."""
         super().__init__(coordinator)
-        self._mac_address = mac_address.upper()
+        # Normalize MAC address to match coordinator format (uppercase with colons)
+        self._mac_address = normalize_mac_address(mac_address)
+        
         self._server_name = server_name
         self._entry_id = entry_id
         self._sensor_type = sensor_type
         self._device_name = device_name
+        
+        _LOGGER.debug("Sensor %s initialized with normalized MAC: %s -> %s", 
+                     sensor_type, mac_address, self._mac_address)
 
     def _get_device_data(self):
         """Get device data from coordinator."""
         if not self.coordinator.data:
+            _LOGGER.debug("Sensor %s: No coordinator data available", self._sensor_type)
             return None
         
-        for device in self.coordinator.data:
-            if device.get("mac_address", "").upper() == self._mac_address:
+        _LOGGER.debug("Sensor %s: Looking for MAC %s in %d devices", 
+                     self._sensor_type, self._mac_address, len(self.coordinator.data))
+        
+        for i, device in enumerate(self.coordinator.data):
+            device_mac = device.get("mac_address", "")
+            _LOGGER.debug("Sensor %s: Device %d MAC: '%s' vs sensor MAC: '%s'", 
+                         self._sensor_type, i, device_mac, self._mac_address)
+            if device_mac == self._mac_address:  # Both should now be in same format
+                _LOGGER.debug("Sensor %s: Found matching device data", self._sensor_type)
                 return device
+        
+        _LOGGER.debug("Sensor %s: No matching device found for MAC %s", self._sensor_type, self._mac_address)
         return None
 
     @property
@@ -310,7 +326,14 @@ class TechnitiumDHCPDeviceDiagnosticSensor(CoordinatorEntity, SensorEntity):
     @property
     def available(self):
         """Return if the sensor is available."""
-        return self.coordinator.last_update_success and self._get_device_data() is not None
+        coordinator_success = self.coordinator.last_update_success
+        device_data = self._get_device_data()
+        has_device_data = device_data is not None
+        
+        _LOGGER.debug("Sensor %s availability check: coordinator_success=%s, has_device_data=%s", 
+                     self._sensor_type, coordinator_success, has_device_data)
+        
+        return coordinator_success and has_device_data
 
     @property
     def should_poll(self):

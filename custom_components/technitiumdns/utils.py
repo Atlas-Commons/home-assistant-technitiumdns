@@ -7,6 +7,33 @@ from typing import List, Set
 _LOGGER = logging.getLogger(__name__)
 
 
+def normalize_mac_address(mac_address: str) -> str:
+    """Normalize MAC address to uppercase with colons format.
+    
+    Converts MAC addresses from various formats to consistent format:
+    - AA-BB-CC-DD-EE-FF -> AA:BB:CC:DD:EE:FF
+    - aabbccddeeff -> AA:BB:CC:DD:EE:FF
+    - aa:bb:cc:dd:ee:ff -> AA:BB:CC:DD:EE:FF
+    
+    Args:
+        mac_address: MAC address in any common format
+        
+    Returns:
+        MAC address in uppercase with colons format (AA:BB:CC:DD:EE:FF)
+    """
+    if not mac_address:
+        return ""
+    
+    mac_upper = mac_address.upper()
+    
+    if len(mac_upper) == 12:  # No separators: AABBCCDDEEFF
+        return ':'.join([mac_upper[i:i+2] for i in range(0, 12, 2)])
+    elif len(mac_upper) == 17:  # With separators: AA-BB-CC-DD-EE-FF or AA:BB:CC:DD:EE:FF
+        return mac_upper.replace('-', ':')
+    else:
+        return mac_upper  # Keep as-is if unexpected format
+
+
 def parse_ip_ranges(ip_ranges_str: str) -> Set[str]:
     """
     Parse IP ranges string into a set of IP addresses.

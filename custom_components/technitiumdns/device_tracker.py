@@ -28,10 +28,10 @@ from .const import (
     CONF_ACTIVITY_ANALYSIS_WINDOW,
     DEFAULT_DHCP_SMART_ACTIVITY,
     DEFAULT_ACTIVITY_SCORE_THRESHOLD,
-    DEFAULT_ACTIVITY_ANALYSIS_WINDOW
+    DEFAULT_ACTIVITY_ANALYSIS_WINDOW,
 )
 from .api import TechnitiumDNSApi
-from .utils import should_track_ip
+from .utils import should_track_ip, normalize_mac_address
 from .activity_analyzer import SmartActivityAnalyzer, analyze_batch_device_activity
 
 # Import cleanup functionality
@@ -223,7 +223,7 @@ class TechnitiumDHCPCoordinator(DataUpdateCoordinator):
                     
                     processed_lease = {
                         "ip_address": ip_address,
-                        "mac_address": mac_address.upper(),
+                        "mac_address": normalize_mac_address(mac_address),
                         "hostname": lease.get("hostName", ""),
                         "client_id": lease.get("clientIdentifier", ""),
                         "lease_expires": lease.get("leaseExpires"),
@@ -268,14 +268,7 @@ class TechnitiumDHCPCoordinator(DataUpdateCoordinator):
             for lease in processed_leases:
                 mac = lease.get("mac_address")
                 if mac:
-                    # Normalize MAC format to uppercase with colons for consistent comparison
-                    mac_upper = mac.upper()
-                    if len(mac_upper) == 12:  # No separators: AABBCCDDEEFF
-                        normalized_mac = ':'.join([mac_upper[i:i+2] for i in range(0, 12, 2)])
-                    elif len(mac_upper) == 17:  # With separators: AA-BB-CC-DD-EE-FF or AA:BB:CC:DD:EE:FF
-                        normalized_mac = mac_upper.replace('-', ':')
-                    else:
-                        normalized_mac = mac_upper  # Keep as-is if unexpected format
+                    normalized_mac = normalize_mac_address(mac)
                     current_macs.add(normalized_mac)
                     _LOGGER.debug("Device tracker normalized MAC %s -> %s", mac, normalized_mac)
             _LOGGER.debug("Device tracker collected %d normalized MAC addresses: %s", 
