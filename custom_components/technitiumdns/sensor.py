@@ -1,7 +1,7 @@
 from datetime import timedelta
 import logging
 
-from homeassistant.components.sensor import SensorEntity
+from homeassistant.components.sensor import SensorEntity, SensorDeviceClass
 from homeassistant.helpers.update_coordinator import (
     DataUpdateCoordinator,
     UpdateFailed,
@@ -18,7 +18,7 @@ _LOGGER = logging.getLogger(__name__)
 SCAN_INTERVAL = timedelta(minutes=1)
 
 async def async_setup_entry(hass, entry, async_add_entities):
-    """Set up the TechnitiumDNS sensor based on a config entry."""
+    """Set up TechnitiumDNS sensors: main DNS statistics and device diagnostic sensors."""
     try:
         _LOGGER.info("Setting up TechnitiumDNS sensor platform for entry %s", entry.entry_id)
         config_entry = hass.data[DOMAIN][entry.entry_id]
@@ -26,66 +26,61 @@ async def async_setup_entry(hass, entry, async_add_entities):
         server_name = config_entry["server_name"]
         stats_duration = config_entry["stats_duration"]
 
+        # Create main DNS statistics coordinator and sensors
         coordinator = TechnitiumDNSCoordinator(hass, api, stats_duration)
         await coordinator.async_config_entry_first_refresh()
 
-        # Create main DNS statistics sensors
         sensors = [
             TechnitiumDNSSensor(coordinator, sensor_type, server_name, entry.entry_id)
             for sensor_type in SENSOR_TYPES
         ]
         _LOGGER.info("Created %d main DNS statistics sensors", len(sensors))
         
-        # Check if DHCP coordinator exists and create diagnostic sensors for DHCP devices
-        coordinators = config_entry.get("coordinators", {})
-        dhcp_coordinator = coordinators.get("dhcp")
-        
-        _LOGGER.debug("Available coordinators: %s", list(coordinators.keys()) if coordinators else "None")
-        
-        if dhcp_coordinator and dhcp_coordinator.data:
-            _LOGGER.info("Processing %d DHCP devices to create diagnostic sensors", len(dhcp_coordinator.data))
+        # Create device diagnostic sensors if DHCP coordinator is available
+        dhcp_coordinator = None
+        coordinators = hass.data[DOMAIN][entry.entry_id].get("coordinators", {})
+        if "dhcp" in coordinators:
+            dhcp_coordinator = coordinators["dhcp"]
+            _LOGGER.info("DHCP coordinator found, creating device diagnostic sensors")
             
-            sensor_count_before = len(sensors)
-            
-            for lease in dhcp_coordinator.data:
-                mac_address = lease.get("mac_address", "")
-                hostname = lease.get("hostname", "")
+            # Create diagnostic sensors for each tracked device
+            if dhcp_coordinator.data:
+                for lease in dhcp_coordinator.data:
+                    mac_address = lease.get("mac_address", "")
+                    hostname = lease.get("hostname", "")
+                    ip_address = lease.get("ip_address", "")
+                    
+                    # Create a device name consistent with device tracker
+                    if hostname:
+                        device_name = hostname
+                    elif mac_address:
+                        device_name = f"Device_{mac_address.replace(':', '')[-6:]}"
+                    else:
+                        device_name = f"Unknown_Device_{ip_address}"
+                    
+                    _LOGGER.debug("Creating diagnostic sensors for device: %s (MAC: %s)", device_name, mac_address)
+                    
+                    diagnostic_sensors = [
+                        TechnitiumDHCPDeviceIPSensor(dhcp_coordinator, mac_address, server_name, entry.entry_id, device_name),
+                        TechnitiumDHCPDeviceMaCSensor(dhcp_coordinator, mac_address, server_name, entry.entry_id, device_name),
+                        TechnitiumDHCPDeviceHostnameSensor(dhcp_coordinator, mac_address, server_name, entry.entry_id, device_name),
+                        TechnitiumDHCPDeviceLeaseObtainedSensor(dhcp_coordinator, mac_address, server_name, entry.entry_id, device_name),
+                        TechnitiumDHCPDeviceLeaseExpiresSensor(dhcp_coordinator, mac_address, server_name, entry.entry_id, device_name),
+                        TechnitiumDHCPDeviceLastSeenSensor(dhcp_coordinator, mac_address, server_name, entry.entry_id, device_name),
+                        TechnitiumDHCPDeviceIsStaleSensor(dhcp_coordinator, mac_address, server_name, entry.entry_id, device_name),
+                        TechnitiumDHCPDeviceMinutesSinceSeenSensor(dhcp_coordinator, mac_address, server_name, entry.entry_id, device_name),
+                        TechnitiumDHCPDeviceActivityScoreSensor(dhcp_coordinator, mac_address, server_name, entry.entry_id, device_name),
+                        TechnitiumDHCPDeviceIsActivelyUsedSensor(dhcp_coordinator, mac_address, server_name, entry.entry_id, device_name),
+                        TechnitiumDHCPDeviceActivitySummarySensor(dhcp_coordinator, mac_address, server_name, entry.entry_id, device_name),
+                    ]
+                    
+                    sensors.extend(diagnostic_sensors)
+                    _LOGGER.debug("Created %d diagnostic sensors for device %s", len(diagnostic_sensors), device_name)
                 
-                # Create a friendly device name
-                if hostname:
-                    device_name = hostname
-                elif mac_address:
-                    device_name = f"Device_{mac_address.replace(':', '')[-6:]}"
-                else:
-                    device_name = f"Unknown_Device_{lease.get('ip_address', '')}"
-                
-                _LOGGER.debug("Creating diagnostic sensors for device: %s (MAC: %s)", device_name, mac_address)
-                
-                # Create all diagnostic sensors for this device
-                device_sensors = [
-                    TechnitiumDHCPDeviceIPSensor(dhcp_coordinator, mac_address, server_name, entry.entry_id, device_name),
-                    TechnitiumDHCPDeviceMaCSensor(dhcp_coordinator, mac_address, server_name, entry.entry_id, device_name),
-                    TechnitiumDHCPDeviceHostnameSensor(dhcp_coordinator, mac_address, server_name, entry.entry_id, device_name),
-                    TechnitiumDHCPDeviceLeaseObtainedSensor(dhcp_coordinator, mac_address, server_name, entry.entry_id, device_name),
-                    TechnitiumDHCPDeviceLeaseExpiresSensor(dhcp_coordinator, mac_address, server_name, entry.entry_id, device_name),
-                    TechnitiumDHCPDeviceLastSeenSensor(dhcp_coordinator, mac_address, server_name, entry.entry_id, device_name),
-                    TechnitiumDHCPDeviceIsStaleSensor(dhcp_coordinator, mac_address, server_name, entry.entry_id, device_name),
-                    TechnitiumDHCPDeviceMinutesSinceSeenSensor(dhcp_coordinator, mac_address, server_name, entry.entry_id, device_name),
-                    TechnitiumDHCPDeviceActivityScoreSensor(dhcp_coordinator, mac_address, server_name, entry.entry_id, device_name),
-                    TechnitiumDHCPDeviceIsActivelyUsedSensor(dhcp_coordinator, mac_address, server_name, entry.entry_id, device_name),
-                    TechnitiumDHCPDeviceActivitySummarySensor(dhcp_coordinator, mac_address, server_name, entry.entry_id, device_name),
-                ]
-                
-                sensors.extend(device_sensors)
-                _LOGGER.debug("Created %d diagnostic sensors for device %s", len(device_sensors), device_name)
-                
-            diagnostic_sensors_count = len(sensors) - sensor_count_before
-            _LOGGER.info("Created %d diagnostic sensor entities for %d DHCP devices", 
-                        diagnostic_sensors_count, len(dhcp_coordinator.data))
-        elif dhcp_coordinator:
-            _LOGGER.warning("DHCP coordinator found but no data available - no diagnostic sensors created")
+                _LOGGER.info("Created %d device diagnostic sensors for %d devices", 
+                           len(sensors) - len(SENSOR_TYPES), len(dhcp_coordinator.data))
         else:
-            _LOGGER.info("No DHCP coordinator found - only main DNS sensors will be created")
+            _LOGGER.info("DHCP coordinator not available yet, only creating main DNS sensors")
         
         _LOGGER.info("Total sensors to register: %d", len(sensors))
         async_add_entities(sensors, True)

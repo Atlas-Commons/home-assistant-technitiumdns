@@ -49,9 +49,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         model="DNS Server",
     )
 
-    # Forward the setup to the appropriate platforms
+    # Forward the setup to the appropriate platforms in order
     _LOGGER.info("Starting platform setup for: %s", platforms)
-    await hass.config_entries.async_forward_entry_setups(entry, platforms)
+    
+    # Set up platforms sequentially to ensure proper coordinator sharing
+    for platform in platforms:
+        await hass.config_entries.async_forward_entry_setup(entry, platform)
+        _LOGGER.debug("Platform %s setup completed", platform)
+    
     _LOGGER.info("All platforms setup completed successfully")
     
     # Set up options flow listener to handle configuration changes
