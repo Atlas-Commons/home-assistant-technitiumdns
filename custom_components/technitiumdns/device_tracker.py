@@ -1,9 +1,23 @@
-"""Support for TechnitiumDNS DHCP device tracking."""
+"""Support for TechnitiumDNS DHCP device tracking.
+
+This module provides:
+1. Device tracker entities that monitor DHCP lease status
+2. Diagnostic sensor entities for each tracked device that provide detailed information:
+   - IP Address, MAC Address, Hostname
+   - Lease Obtained/Expires timestamps
+   - Last Seen timestamp (requires DNS logging app)
+   - Staleness indicators (requires DNS logging app)
+
+The diagnostic sensors are automatically created for each tracked device and are marked
+as diagnostic entities for better organization in Home Assistant.
+"""
 from datetime import timedelta, datetime
 import logging
 
 from homeassistant.components.device_tracker.config_entry import ScannerEntity
 from homeassistant.components.device_tracker.const import SourceType
+from homeassistant.components.sensor import SensorEntity, SensorDeviceClass
+from homeassistant.const import EntityCategory
 from homeassistant.helpers.update_coordinator import (
     DataUpdateCoordinator,
     UpdateFailed,
@@ -75,6 +89,11 @@ async def async_setup_entry(hass, entry, async_add_entities):
         _LOGGER.info("Adding %d device tracker entities to Home Assistant", len(device_trackers))
         async_add_entities(device_trackers, True)
         _LOGGER.info("TechnitiumDNS DHCP device tracker setup completed successfully")
+        
+        # Store coordinator in hass.data for sensor platform to access
+        if "coordinators" not in hass.data[DOMAIN][entry.entry_id]:
+            hass.data[DOMAIN][entry.entry_id]["coordinators"] = {}
+        hass.data[DOMAIN][entry.entry_id]["coordinators"]["dhcp"] = coordinator
         
     except Exception as e:
         _LOGGER.error("Could not initialize TechnitiumDNS DHCP tracking: %s", e, exc_info=True)
@@ -386,32 +405,17 @@ class TechnitiumDHCPDeviceTracker(CoordinatorEntity, ScannerEntity):
     def extra_state_attributes(self):
         """Return additional attributes."""
         attributes = {
-            "mac_address": self._mac_address,
-            "ip_address": self.ip_address,
-            "hostname": self.hostname,
             "source": "TechnitiumDNS DHCP",
         }
         
-        # Add lease-specific information if available
+        # Add minimal lease-specific information
         if self.coordinator.data:
             for lease in self.coordinator.data:
                 if lease.get("mac_address") == self._mac_address:
                     attributes.update({
-                        "client_id": lease.get("client_id", ""),
-                        "lease_expires": lease.get("lease_expires", ""),
-                        "lease_obtained": lease.get("lease_obtained", ""),
                         "scope": lease.get("scope", ""),
                         "lease_type": lease.get("type", ""),
                     })
-                    
-                    # Add DNS log tracking attributes if available
-                    if lease.get("last_seen") is not None:
-                        attributes.update({
-                            "last_seen": lease.get("last_seen"),
-                            "is_stale": lease.get("is_stale", False),
-                            "minutes_since_seen": lease.get("minutes_since_seen", 0),
-                            "stale_threshold_minutes": self.coordinator.stale_threshold_minutes,
-                        })
                     break
         
         return attributes
@@ -431,3 +435,307 @@ class TechnitiumDHCPDeviceTracker(CoordinatorEntity, ScannerEntity):
     def available(self):
         """Return if the device tracker is available."""
         return self.coordinator.last_update_success
+
+
+class TechnitiumDHCPDeviceDiagnosticSensor(CoordinatorEntity, SensorEntity):
+    """Base class for TechnitiumDNS DHCP device diagnostic sensors."""
+
+    def __init__(self, coordinator, mac_address, server_name, entry_id, sensor_type, device_name):
+        """Initialize the diagnostic sensor."""
+        super().__init__(coordinator)
+        self._mac_address = mac_address
+        self._server_name = server_name
+        self._entry_id = entry_id
+        self._sensor_type = sensor_type
+        self._device_name = device_name
+        self._attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    @property
+    def device_info(self):
+        """Return device information for this entity."""
+        return DeviceInfo(
+            identifiers={(DOMAIN, f"dhcp_device_{self._mac_address.replace(':', '').lower()}")},
+            name=self._device_name,
+            manufacturer="Unknown",
+            model="DHCP Client",
+            via_device=(DOMAIN, self._entry_id),
+        )
+
+    @property
+    def available(self):
+        """Return if the sensor is available."""
+        return self.coordinator.last_update_success
+
+    def _get_device_data(self):
+        """Get the current device data from coordinator."""
+        if not self.coordinator.data:
+            return None
+            
+        for lease in self.coordinator.data:
+            if lease.get("mac_address") == self._mac_address:
+                return lease
+        return None
+
+
+class TechnitiumDHCPDeviceIPSensor(TechnitiumDHCPDeviceDiagnosticSensor):
+    """IP Address diagnostic sensor for a DHCP device."""
+
+    def __init__(self, coordinator, mac_address, server_name, entry_id, device_name):
+        """Initialize the IP address sensor."""
+        super().__init__(coordinator, mac_address, server_name, entry_id, "ip_address", device_name)
+
+    @property
+    def name(self):
+        """Return the name of the sensor."""
+        return f"{self._device_name} IP Address"
+
+    @property
+    def unique_id(self):
+        """Return a unique ID."""
+        mac_clean = self._mac_address.replace(':', '').lower()
+        return f"technitiumdns_dhcp_{mac_clean}_ip"
+
+    @property
+    def native_value(self):
+        """Return the IP address."""
+        device_data = self._get_device_data()
+        return device_data.get("ip_address") if device_data else None
+
+    @property
+    def icon(self):
+        """Return the icon for this sensor."""
+        return "mdi:ip-network"
+
+
+class TechnitiumDHCPDeviceMaCSensor(TechnitiumDHCPDeviceDiagnosticSensor):
+    """MAC Address diagnostic sensor for a DHCP device."""
+
+    def __init__(self, coordinator, mac_address, server_name, entry_id, device_name):
+        """Initialize the MAC address sensor."""
+        super().__init__(coordinator, mac_address, server_name, entry_id, "mac_address", device_name)
+
+    @property
+    def name(self):
+        """Return the name of the sensor."""
+        return f"{self._device_name} MAC Address"
+
+    @property
+    def unique_id(self):
+        """Return a unique ID."""
+        mac_clean = self._mac_address.replace(':', '').lower()
+        return f"technitiumdns_dhcp_{mac_clean}_mac"
+
+    @property
+    def native_value(self):
+        """Return the MAC address."""
+        return self._mac_address
+
+    @property
+    def icon(self):
+        """Return the icon for this sensor."""
+        return "mdi:network-outline"
+
+
+class TechnitiumDHCPDeviceHostnameSensor(TechnitiumDHCPDeviceDiagnosticSensor):
+    """Hostname diagnostic sensor for a DHCP device."""
+
+    def __init__(self, coordinator, mac_address, server_name, entry_id, device_name):
+        """Initialize the hostname sensor."""
+        super().__init__(coordinator, mac_address, server_name, entry_id, "hostname", device_name)
+
+    @property
+    def name(self):
+        """Return the name of the sensor."""
+        return f"{self._device_name} Hostname"
+
+    @property
+    def unique_id(self):
+        """Return a unique ID."""
+        mac_clean = self._mac_address.replace(':', '').lower()
+        return f"technitiumdns_dhcp_{mac_clean}_hostname"
+
+    @property
+    def native_value(self):
+        """Return the hostname."""
+        device_data = self._get_device_data()
+        return device_data.get("hostname") if device_data else None
+
+    @property
+    def icon(self):
+        """Return the icon for this sensor."""
+        return "mdi:card-account-details-outline"
+
+
+class TechnitiumDHCPDeviceLeaseObtainedSensor(TechnitiumDHCPDeviceDiagnosticSensor):
+    """Lease Obtained diagnostic sensor for a DHCP device."""
+
+    def __init__(self, coordinator, mac_address, server_name, entry_id, device_name):
+        """Initialize the lease obtained sensor."""
+        super().__init__(coordinator, mac_address, server_name, entry_id, "lease_obtained", device_name)
+
+    @property
+    def name(self):
+        """Return the name of the sensor."""
+        return f"{self._device_name} Lease Obtained"
+
+    @property
+    def unique_id(self):
+        """Return a unique ID."""
+        mac_clean = self._mac_address.replace(':', '').lower()
+        return f"technitiumdns_dhcp_{mac_clean}_lease_obtained"
+
+    @property
+    def native_value(self):
+        """Return the lease obtained time."""
+        device_data = self._get_device_data()
+        return device_data.get("lease_obtained") if device_data else None
+
+    @property
+    def device_class(self):
+        """Return the device class."""
+        return SensorDeviceClass.TIMESTAMP
+
+    @property
+    def icon(self):
+        """Return the icon for this sensor."""
+        return "mdi:calendar-clock"
+
+
+class TechnitiumDHCPDeviceLeaseExpiresSensor(TechnitiumDHCPDeviceDiagnosticSensor):
+    """Lease Expires diagnostic sensor for a DHCP device."""
+
+    def __init__(self, coordinator, mac_address, server_name, entry_id, device_name):
+        """Initialize the lease expires sensor."""
+        super().__init__(coordinator, mac_address, server_name, entry_id, "lease_expires", device_name)
+
+    @property
+    def name(self):
+        """Return the name of the sensor."""
+        return f"{self._device_name} Lease Expires"
+
+    @property
+    def unique_id(self):
+        """Return a unique ID."""
+        mac_clean = self._mac_address.replace(':', '').lower()
+        return f"technitiumdns_dhcp_{mac_clean}_lease_expires"
+
+    @property
+    def native_value(self):
+        """Return the lease expires time."""
+        device_data = self._get_device_data()
+        return device_data.get("lease_expires") if device_data else None
+
+    @property
+    def device_class(self):
+        """Return the device class."""
+        return SensorDeviceClass.TIMESTAMP
+
+    @property
+    def icon(self):
+        """Return the icon for this sensor."""
+        return "mdi:calendar-remove"
+
+
+class TechnitiumDHCPDeviceLastSeenSensor(TechnitiumDHCPDeviceDiagnosticSensor):
+    """Last Seen diagnostic sensor for a DHCP device."""
+
+    def __init__(self, coordinator, mac_address, server_name, entry_id, device_name):
+        """Initialize the last seen sensor."""
+        super().__init__(coordinator, mac_address, server_name, entry_id, "last_seen", device_name)
+
+    @property
+    def name(self):
+        """Return the name of the sensor."""
+        return f"{self._device_name} Last Seen"
+
+    @property
+    def unique_id(self):
+        """Return a unique ID."""
+        mac_clean = self._mac_address.replace(':', '').lower()
+        return f"technitiumdns_dhcp_{mac_clean}_last_seen"
+
+    @property
+    def native_value(self):
+        """Return the last seen time."""
+        device_data = self._get_device_data()
+        return device_data.get("last_seen") if device_data else None
+
+    @property
+    def device_class(self):
+        """Return the device class."""
+        return SensorDeviceClass.TIMESTAMP
+
+    @property
+    def icon(self):
+        """Return the icon for this sensor."""
+        return "mdi:clock-outline"
+
+
+class TechnitiumDHCPDeviceIsStaleSensor(TechnitiumDHCPDeviceDiagnosticSensor):
+    """Is Stale diagnostic sensor for a DHCP device."""
+
+    def __init__(self, coordinator, mac_address, server_name, entry_id, device_name):
+        """Initialize the is stale sensor."""
+        super().__init__(coordinator, mac_address, server_name, entry_id, "is_stale", device_name)
+
+    @property
+    def name(self):
+        """Return the name of the sensor."""
+        return f"{self._device_name} Is Stale"
+
+    @property
+    def unique_id(self):
+        """Return a unique ID."""
+        mac_clean = self._mac_address.replace(':', '').lower()
+        return f"technitiumdns_dhcp_{mac_clean}_is_stale"
+
+    @property
+    def native_value(self):
+        """Return whether the device is stale."""
+        device_data = self._get_device_data()
+        if device_data:
+            return "Yes" if device_data.get("is_stale", False) else "No"
+        return None
+
+    @property
+    def icon(self):
+        """Return the icon for this sensor."""
+        device_data = self._get_device_data()
+        if device_data and device_data.get("is_stale", False):
+            return "mdi:wifi-off"
+        return "mdi:wifi"
+
+
+class TechnitiumDHCPDeviceMinutesSinceSeenSensor(TechnitiumDHCPDeviceDiagnosticSensor):
+    """Minutes Since Seen diagnostic sensor for a DHCP device."""
+
+    def __init__(self, coordinator, mac_address, server_name, entry_id, device_name):
+        """Initialize the minutes since seen sensor."""
+        super().__init__(coordinator, mac_address, server_name, entry_id, "minutes_since_seen", device_name)
+
+    @property
+    def name(self):
+        """Return the name of the sensor."""
+        return f"{self._device_name} Minutes Since Seen"
+
+    @property
+    def unique_id(self):
+        """Return a unique ID."""
+        mac_clean = self._mac_address.replace(':', '').lower()
+        return f"technitiumdns_dhcp_{mac_clean}_minutes_since_seen"
+
+    @property
+    def native_value(self):
+        """Return the minutes since last seen."""
+        device_data = self._get_device_data()
+        return device_data.get("minutes_since_seen", 0) if device_data else None
+
+    @property
+    def native_unit_of_measurement(self):
+        """Return the unit of measurement."""
+        return "min"
+
+    @property
+    def icon(self):
+        """Return the icon for this sensor."""
+        return "mdi:timer-outline"

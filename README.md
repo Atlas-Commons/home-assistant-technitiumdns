@@ -102,6 +102,17 @@ Device Trackers (Optional):
     - Supports single IPs, CIDR notation, and IP ranges
     - Examples: `192.168.1.100`, `192.168.1.0/24`, `192.168.1.1-192.168.1.50`
 
+- **Device Diagnostic Sensors**: Each tracked device automatically gets dedicated diagnostic sensors:
+  - **IP Address Sensor**: Current IP address of the device
+  - **MAC Address Sensor**: Hardware MAC address identifier
+  - **Hostname Sensor**: Device hostname if available from DHCP
+  - **Lease Obtained Sensor**: Timestamp when the DHCP lease was first obtained
+  - **Lease Expires Sensor**: Timestamp when the current DHCP lease expires
+  - **Last Seen Sensor**: Last DNS activity timestamp (requires DNS logging app)
+  - **Is Stale Sensor**: Whether device has been inactive for too long (requires DNS logging)
+  - **Minutes Since Seen Sensor**: How many minutes since last DNS activity (requires DNS logging)
+  - All sensors are marked as diagnostic entities for better organization in Home Assistant
+
 - **DNS Query Logs Tracking** (Advanced):
   - **Requires DNS App Installation**: DNS query logging is only available through DNS apps with logging capability
   - **Not Available by Default**: The Technitium DNS `/api/logs/query` endpoint requires specific DNS app parameters
