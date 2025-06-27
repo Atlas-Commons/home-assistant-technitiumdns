@@ -108,10 +108,15 @@ async def async_register_services(hass: HomeAssistant):
                         mac = lease.get("mac_address")
                         if mac:
                             # Normalize MAC format to uppercase with colons
-                            normalized_mac = mac.upper().replace('-', ':')
-                            if len(normalized_mac) == 12:  # No separators
-                                normalized_mac = ':'.join([normalized_mac[i:i+2] for i in range(0, 12, 2)])
+                            mac_upper = mac.upper()
+                            if len(mac_upper) == 12:  # No separators: AABBCCDDEEFF
+                                normalized_mac = ':'.join([mac_upper[i:i+2] for i in range(0, 12, 2)])
+                            elif len(mac_upper) == 17:  # With separators: AA-BB-CC-DD-EE-FF or AA:BB:CC:DD:EE:FF
+                                normalized_mac = mac_upper.replace('-', ':')
+                            else:
+                                normalized_mac = mac_upper  # Keep as-is if unexpected format
                             current_macs.add(normalized_mac)
+                            _LOGGER.debug("Normalized MAC %s -> %s", mac, normalized_mac)
                     _LOGGER.debug("Found %d current MAC addresses for entry %s: %s", 
                                 len(current_macs), config_entry_id, sorted(current_macs))
                     await async_cleanup_orphaned_entities(hass, config_entry_id, current_macs)
@@ -146,10 +151,15 @@ async def async_register_services(hass: HomeAssistant):
                         mac = lease.get("mac_address")
                         if mac:
                             # Normalize MAC format to uppercase with colons
-                            normalized_mac = mac.upper().replace('-', ':')
-                            if len(normalized_mac) == 12:  # No separators
-                                normalized_mac = ':'.join([normalized_mac[i:i+2] for i in range(0, 12, 2)])
+                            mac_upper = mac.upper()
+                            if len(mac_upper) == 12:  # No separators: AABBCCDDEEFF
+                                normalized_mac = ':'.join([mac_upper[i:i+2] for i in range(0, 12, 2)])
+                            elif len(mac_upper) == 17:  # With separators: AA-BB-CC-DD-EE-FF or AA:BB:CC:DD:EE:FF
+                                normalized_mac = mac_upper.replace('-', ':')
+                            else:
+                                normalized_mac = mac_upper  # Keep as-is if unexpected format
                             current_macs.add(normalized_mac)
+                            _LOGGER.debug("Normalized MAC %s -> %s", mac, normalized_mac)
                     _LOGGER.debug("Found %d current MAC addresses for entry %s: %s", 
                                 len(current_macs), entry_id, sorted(current_macs))
                     await async_cleanup_orphaned_entities(hass, entry_id, current_macs)
