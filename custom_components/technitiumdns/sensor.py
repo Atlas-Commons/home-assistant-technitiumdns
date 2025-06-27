@@ -157,8 +157,8 @@ class TechnitiumDNSCoordinator(DataUpdateCoordinator):
             Technitiumdns_update_info = await self.api.check_update()
 
             # Add logging to debug response content
-            _LOGGER.debug("Technitiumdns_statistics response content: %s", Technitiumdns_statistics)
-            _LOGGER.debug("Technitiumdns_update_info response content: %s", Technitiumdns_update_info)
+            # _LOGGER.debug("Technitiumdns_statistics response content: %s", Technitiumdns_statistics)
+            # _LOGGER.debug("Technitiumdns_update_info response content: %s", Technitiumdns_update_info)
 
             Technitiumdns_stats = Technitiumdns_statistics.get("response", {}).get("stats", {})
             data = {

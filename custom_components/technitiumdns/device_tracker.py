@@ -158,7 +158,7 @@ class TechnitiumDHCPCoordinator(DataUpdateCoordinator):
             dhcp_response = await self.api.get_dhcp_leases()
             
             _LOGGER.debug("DHCP leases response status: %s", dhcp_response.get("status"))
-            _LOGGER.debug("Raw DHCP leases response: %s", dhcp_response)
+            # _LOGGER.debug("Raw DHCP leases response: %s", dhcp_response)
             
             if dhcp_response.get("status") != "ok":
                 _LOGGER.error("DHCP API returned error status: %s", dhcp_response.get("status"))
@@ -200,23 +200,23 @@ class TechnitiumDHCPCoordinator(DataUpdateCoordinator):
                     # Accept lease types according to Technitium DNS API docs
                     if lease_type == "Dynamic":
                         should_include = True
-                        _LOGGER.debug("Including Dynamic lease")
+                        # _LOGGER.debug("Including Dynamic lease")
                     elif lease_type == "Reserved":
                         should_include = True
-                        _LOGGER.debug("Including Reserved lease")
+                        # _LOGGER.debug("Including Reserved lease")
                     elif not lease_type:  # Type might be empty/null
                         should_include = True
-                        _LOGGER.debug("Including lease with empty type (assuming dynamic)")
+                        # _LOGGER.debug("Including lease with empty type (assuming dynamic)")
                     else:
                         # Log but still include unknown lease types to be flexible
                         should_include = True
-                        _LOGGER.debug("Including lease with unknown type '%s'", lease_type)
+                        # _LOGGER.debug("Including lease with unknown type '%s'", lease_type)
                 
                 if should_include:
                     # Apply IP filtering
                     if not should_track_ip(ip_address, self.ip_filter_mode, self.ip_ranges):
                         filtered_count += 1
-                        _LOGGER.debug("Filtering out IP %s based on filter mode %s", ip_address, self.ip_filter_mode)
+                        # _LOGGER.debug("Filtering out IP %s based on filter mode %s", ip_address, self.ip_filter_mode)
                         continue
                     
                     processed_lease = {
