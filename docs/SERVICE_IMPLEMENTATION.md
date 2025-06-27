@@ -77,4 +77,25 @@ automation:
 - Consistent with other service implementations
 - Error handling and logging follow integration patterns
 
+### Debug Logging
+Both services support comprehensive debug logging when enabled:
+
+```yaml
+logger:
+  logs:
+    custom_components.technitiumdns: debug
+```
+
+#### Cleanup Service Debug Output
+- Service call parameters and configuration validation
+- MAC address extraction and entity identification
+- Device cleanup decision making process
+- Complete lists of entities and devices processed
+
+#### DHCP Leases Service Debug Output
+- Service call parameters and target entry selection
+- API request details and response validation
+- Lease filtering and processing logic
+- Event data preparation and firing
+
 This service provides users with programmatic access to DHCP lease data, enabling advanced automation and monitoring scenarios beyond the built-in device tracking features.

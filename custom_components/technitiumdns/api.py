@@ -178,7 +178,14 @@ class TechnitiumDNSApi:
 
     async def get_dhcp_leases(self):
         """Get DHCP leases from the API."""
-        return await self.fetch_data("api/dhcp/leases/list")
+        _LOGGER.debug("Calling DHCP leases API endpoint: api/dhcp/leases/list")
+        result = await self.fetch_data("api/dhcp/leases/list")
+        _LOGGER.debug("DHCP leases API response: %s", result)
+        if result:
+            _LOGGER.debug("Response keys: %s", list(result.keys()) if isinstance(result, dict) else "Not a dict")
+            if isinstance(result, dict) and "response" in result:
+                _LOGGER.debug("Response.response keys: %s", list(result["response"].keys()) if isinstance(result["response"], dict) else "No response key or not dict")
+        return result
 
     async def get_dhcp_scopes(self):
         """Get DHCP scopes from the API."""

@@ -173,7 +173,9 @@ action:
 
 ## Logging
 
-Cleanup actions are logged with details:
+Cleanup actions are logged with comprehensive detail for troubleshooting:
+
+### Info Level Logging
 ```
 INFO: Starting entity cleanup for entry abc123def456
 INFO: Marking entity device_tracker.old_device for removal (MAC AA:BB:CC:DD:EE:FF no longer tracked)
@@ -181,6 +183,50 @@ INFO: Removing orphaned entity: sensor.old_device_activity_score
 INFO: Removing orphaned device: Old Device
 INFO: Cleanup completed: removed 385 entities and 35 devices
 ```
+
+### Debug Level Logging
+When debug logging is enabled (`homeassistant.components.technitiumdns: debug`), additional detailed information is logged:
+
+#### Service Call Details
+```
+DEBUG: Cleanup service called with config_entry_id: abc123def456
+DEBUG: Found entry data for abc123def456: ['api', 'coordinators']
+DEBUG: Found 15 current MAC addresses for entry abc123def456: ['AA:BB:CC:DD:EE:FF', 'BB:CC:DD:EE:FF:AA']
+```
+
+#### Entity Processing Details
+```
+DEBUG: Scanning entity registry for entities belonging to entry abc123def456
+DEBUG: Checking entity device_tracker.old_device (unique_id: dhcp_device_aabbccddeeff, platform: device_tracker)
+DEBUG: Found DHCP entity: device_tracker.old_device with unique_id: dhcp_device_aabbccddeeff
+DEBUG: Extracted MAC clean from device tracker: aabbccddeeff
+DEBUG: Converted to MAC address: AA:BB:CC:DD:EE:FF
+DEBUG: MAC AA:BB:CC:DD:EE:FF not in current devices - marking entity device_tracker.old_device for removal
+```
+
+#### Device Cleanup Details
+```
+DEBUG: Checking device abc123 (Old Device) for remaining entities
+DEBUG: Device Old Device has 0 remaining entities: []
+DEBUG: Device Old Device has no remaining entities - marking for removal
+DEBUG: Removed entities: ['device_tracker.old_device', 'sensor.old_device_ip']
+DEBUG: Removed devices: ['Old Device']
+```
+
+### Enabling Debug Logging
+Add to your `configuration.yaml`:
+```yaml
+logger:
+  logs:
+    custom_components.technitiumdns: debug
+```
+
+This provides detailed insight into:
+- Service call parameters and entry validation
+- MAC address extraction and validation
+- Entity discovery and filtering logic
+- Device cleanup decision making
+- Complete lists of removed entities and devices
 
 ## Benefits
 
