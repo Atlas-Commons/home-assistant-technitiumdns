@@ -865,7 +865,10 @@ class DynamicSensorManager:
         _LOGGER.debug("Available coordinator methods: %s", [m for m in dir(self.dhcp_coordinator) if 'listener' in m.lower()])
         
         if hasattr(self.dhcp_coordinator, 'async_add_listener'):
-            self._listener = self.dhcp_coordinator.async_add_listener(self._handle_coordinator_update)
+            def _sync_listener():
+                _LOGGER.debug("DHCP COORDINATOR: async listener triggered")
+                self.hass.async_create_task(self._handle_coordinator_update())
+            self._listener = self.dhcp_coordinator.async_add_listener(_sync_listener)
             _LOGGER.debug("Successfully added coordinator listener")
         else:
             _LOGGER.error("DHCP coordinator does not have async_add_listener method!")
