@@ -19,7 +19,15 @@ from .const import (
     DEFAULT_DHCP_LOG_TRACKING,
     DEFAULT_DHCP_STALE_THRESHOLD,
     CONF_DHCP_LOG_TRACKING,
-    CONF_DHCP_STALE_THRESHOLD
+    CONF_DHCP_STALE_THRESHOLD,
+    ACTIVITY_SCORE_THRESHOLDS,
+    ACTIVITY_ANALYSIS_WINDOWS,
+    DEFAULT_DHCP_SMART_ACTIVITY,
+    DEFAULT_ACTIVITY_SCORE_THRESHOLD,
+    DEFAULT_ACTIVITY_ANALYSIS_WINDOW,
+    CONF_DHCP_SMART_ACTIVITY,
+    CONF_ACTIVITY_SCORE_THRESHOLD,
+    CONF_ACTIVITY_ANALYSIS_WINDOW
 )
 from .api import TechnitiumDNSApi
 
@@ -158,6 +166,18 @@ class TechnitiumDNSOptionsFlowHandler(config_entries.OptionsFlow):
                 CONF_DHCP_STALE_THRESHOLD,
                 default=self.config_entry.options.get(CONF_DHCP_STALE_THRESHOLD, DEFAULT_DHCP_STALE_THRESHOLD)
             ): vol.In(list(DHCP_STALE_THRESHOLD_OPTIONS.keys())),
+            vol.Optional(
+                CONF_DHCP_SMART_ACTIVITY,
+                default=self.config_entry.options.get(CONF_DHCP_SMART_ACTIVITY, DEFAULT_DHCP_SMART_ACTIVITY)
+            ): bool,
+            vol.Optional(
+                CONF_ACTIVITY_SCORE_THRESHOLD,
+                default=self.config_entry.options.get(CONF_ACTIVITY_SCORE_THRESHOLD, DEFAULT_ACTIVITY_SCORE_THRESHOLD)
+            ): vol.In(list(ACTIVITY_SCORE_THRESHOLDS.keys())),
+            vol.Optional(
+                CONF_ACTIVITY_ANALYSIS_WINDOW,
+                default=self.config_entry.options.get(CONF_ACTIVITY_ANALYSIS_WINDOW, DEFAULT_ACTIVITY_ANALYSIS_WINDOW)
+            ): vol.In(list(ACTIVITY_ANALYSIS_WINDOWS.keys())),
             vol.Optional("test_dhcp", default=False): bool,
         })
 

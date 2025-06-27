@@ -111,7 +111,17 @@ Device Trackers (Optional):
   - **Last Seen Sensor**: Last DNS activity timestamp (requires DNS logging app)
   - **Is Stale Sensor**: Whether device has been inactive for too long (requires DNS logging)
   - **Minutes Since Seen Sensor**: How many minutes since last DNS activity (requires DNS logging)
+  - **Activity Score Sensor**: Intelligent activity score (0-100) distinguishing user activity from background traffic
+  - **Is Actively Used Sensor**: Smart determination if device is genuinely being used (eliminates false positives)
+  - **Activity Summary Sensor**: Human-readable analysis of device activity patterns
   - All sensors are marked as diagnostic entities for better organization in Home Assistant
+
+- **Smart Activity Analysis**: Advanced feature that solves the "dormant device problem":
+  - **Problem**: Devices with only background traffic (NTP, updates, telemetry) were incorrectly shown as active
+  - **Solution**: Multi-factor scoring analyzes protocol mix, domain diversity, timing patterns, and background traffic ratio
+  - **Background Detection**: Automatically identifies automated traffic vs genuine user activity
+  - **Configurable Threshold**: Adjustable sensitivity (default: 25 points) for different network environments
+  - **Rich Diagnostics**: Detailed scoring breakdown for troubleshooting device activity patterns
 
 - **DNS Query Logs Tracking** (Advanced):
   - **Requires DNS App Installation**: DNS query logging is only available through DNS apps with logging capability

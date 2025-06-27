@@ -34,9 +34,12 @@
                     "dhcp_ip_ranges": "Direcciones IP/Rangos (separados por coma o nueva línea)",
                     "dhcp_log_tracking": "Habilitar seguimiento de logs DNS",
                     "dhcp_stale_threshold": "Umbral de inactividad (minutos)",
+                    "dhcp_smart_activity": "Habilitar análisis inteligente de actividad",
+                    "activity_score_threshold": "Umbral de puntuación de actividad (puntos)",
+                    "activity_analysis_window": "Ventana de análisis de actividad (minutos)",
                     "test_dhcp": "Probar conexión DHCP"
                 },
-                "description": "Habilite el seguimiento de dispositivos DHCP para monitorear dispositivos conectados a su servidor DHCP Technitium. Use filtrado de IP para controlar qué dispositivos son rastreados basándose en sus direcciones IP.",
+                "description": "Habilite el seguimiento de dispositivos DHCP para monitorear dispositivos conectados a su servidor DHCP Technitium. El análisis inteligente de actividad distingue entre actividad real del usuario y tráfico automatizado de fondo (NTP, actualizaciones, telemetría) para eliminar falsos positivos.",
                 "title": "Opciones de TechnitiumDNS"
             },
             "dhcp_test": {

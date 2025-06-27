@@ -51,6 +51,9 @@ async def async_setup_entry(hass, entry, async_add_entities):
                 TechnitiumDHCPDeviceLastSeenSensor,
                 TechnitiumDHCPDeviceIsStaleSensor,
                 TechnitiumDHCPDeviceMinutesSinceSeenSensor,
+                TechnitiumDHCPDeviceActivityScoreSensor,
+                TechnitiumDHCPDeviceIsActivelyUsedSensor,
+                TechnitiumDHCPDeviceActivitySummarySensor,
             )
             
             for lease in dhcp_coordinator.data:
@@ -77,6 +80,9 @@ async def async_setup_entry(hass, entry, async_add_entities):
                     TechnitiumDHCPDeviceLastSeenSensor(dhcp_coordinator, mac_address, server_name, entry.entry_id, device_name),
                     TechnitiumDHCPDeviceIsStaleSensor(dhcp_coordinator, mac_address, server_name, entry.entry_id, device_name),
                     TechnitiumDHCPDeviceMinutesSinceSeenSensor(dhcp_coordinator, mac_address, server_name, entry.entry_id, device_name),
+                    TechnitiumDHCPDeviceActivityScoreSensor(dhcp_coordinator, mac_address, server_name, entry.entry_id, device_name),
+                    TechnitiumDHCPDeviceIsActivelyUsedSensor(dhcp_coordinator, mac_address, server_name, entry.entry_id, device_name),
+                    TechnitiumDHCPDeviceActivitySummarySensor(dhcp_coordinator, mac_address, server_name, entry.entry_id, device_name),
                 ])
                 
             _LOGGER.info("Created %d diagnostic sensor entities for %d DHCP devices", 

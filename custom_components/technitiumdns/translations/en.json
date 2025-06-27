@@ -34,9 +34,12 @@
                     "dhcp_ip_ranges": "IP Addresses/Ranges (comma or newline separated)",
                     "dhcp_log_tracking": "Enable DNS Log Tracking",
                     "dhcp_stale_threshold": "Staleness Threshold (minutes)",
+                    "dhcp_smart_activity": "Enable Smart Activity Analysis",
+                    "activity_score_threshold": "Activity Score Threshold (points)",
+                    "activity_analysis_window": "Activity Analysis Window (minutes)",
                     "test_dhcp": "Test DHCP Connection"
                 },
-                "description": "Enable DHCP device tracking to monitor devices connected to your Technitium DHCP server. Use IP filtering to control which devices are tracked based on their IP addresses.",
+                "description": "Enable DHCP device tracking to monitor devices connected to your Technitium DHCP server. Smart Activity Analysis distinguishes between genuine user activity and automated background traffic (NTP, updates, telemetry) to eliminate false positives.",
                 "title": "TechnitiumDNS Options"
             },
             "dhcp_test": {

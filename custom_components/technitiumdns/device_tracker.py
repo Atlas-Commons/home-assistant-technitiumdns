@@ -31,10 +31,17 @@ from .const import (
     CONF_DHCP_LOG_TRACKING, 
     CONF_DHCP_STALE_THRESHOLD, 
     DEFAULT_DHCP_LOG_TRACKING,
-    DEFAULT_DHCP_STALE_THRESHOLD
+    DEFAULT_DHCP_STALE_THRESHOLD,
+    CONF_DHCP_SMART_ACTIVITY,
+    CONF_ACTIVITY_SCORE_THRESHOLD,
+    CONF_ACTIVITY_ANALYSIS_WINDOW,
+    DEFAULT_DHCP_SMART_ACTIVITY,
+    DEFAULT_ACTIVITY_SCORE_THRESHOLD,
+    DEFAULT_ACTIVITY_ANALYSIS_WINDOW
 )
 from .api import TechnitiumDNSApi
 from .utils import should_track_ip
+from .activity_analyzer import SmartActivityAnalyzer, analyze_batch_device_activity
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -61,11 +68,17 @@ async def async_setup_entry(hass, entry, async_add_entities):
         log_tracking = entry.options.get(CONF_DHCP_LOG_TRACKING, DEFAULT_DHCP_LOG_TRACKING)
         stale_threshold = entry.options.get(CONF_DHCP_STALE_THRESHOLD, DEFAULT_DHCP_STALE_THRESHOLD)
         
-        _LOGGER.info("DHCP tracking configuration: interval=%s seconds, filter_mode=%s, ip_ranges=%s, log_tracking=%s, stale_threshold=%s min", 
-                    update_interval, ip_filter_mode, ip_ranges, log_tracking, stale_threshold)
+        # Get smart activity options
+        smart_activity = entry.options.get(CONF_DHCP_SMART_ACTIVITY, DEFAULT_DHCP_SMART_ACTIVITY)
+        activity_threshold = entry.options.get(CONF_ACTIVITY_SCORE_THRESHOLD, DEFAULT_ACTIVITY_SCORE_THRESHOLD)
+        analysis_window = entry.options.get(CONF_ACTIVITY_ANALYSIS_WINDOW, DEFAULT_ACTIVITY_ANALYSIS_WINDOW)
+        
+        _LOGGER.info("DHCP tracking configuration: interval=%s seconds, filter_mode=%s, ip_ranges=%s, log_tracking=%s, stale_threshold=%s min, smart_activity=%s, activity_threshold=%s, analysis_window=%s min", 
+                    update_interval, ip_filter_mode, ip_ranges, log_tracking, stale_threshold, smart_activity, activity_threshold, analysis_window)
         
         coordinator = TechnitiumDHCPCoordinator(
-            hass, api, update_interval, ip_filter_mode, ip_ranges, log_tracking, stale_threshold
+            hass, api, update_interval, ip_filter_mode, ip_ranges, log_tracking, stale_threshold,
+            smart_activity, activity_threshold, analysis_window
         )
         _LOGGER.debug("Created TechnitiumDHCPCoordinator: %s", coordinator)
         
@@ -104,15 +117,18 @@ class TechnitiumDHCPCoordinator(DataUpdateCoordinator):
     """Class to manage fetching TechnitiumDNS DHCP data."""
 
     def __init__(self, hass, api, update_interval, ip_filter_mode="disabled", ip_ranges="", 
-                 log_tracking=False, stale_threshold=60):
+                 log_tracking=False, stale_threshold=60, smart_activity=True, 
+                 activity_threshold=25, analysis_window=30):
         """Initialize."""
-        _LOGGER.info("Initializing TechnitiumDHCPCoordinator with interval=%s, filter_mode=%s, log_tracking=%s, stale_threshold=%s", 
-                    update_interval, ip_filter_mode, log_tracking, stale_threshold)
+        _LOGGER.info("Initializing TechnitiumDHCPCoordinator with interval=%s, filter_mode=%s, log_tracking=%s, stale_threshold=%s, smart_activity=%s, activity_threshold=%s, analysis_window=%s", 
+                    update_interval, ip_filter_mode, log_tracking, stale_threshold, smart_activity, activity_threshold, analysis_window)
         self.api = api
         self.ip_filter_mode = ip_filter_mode
         self.ip_ranges = ip_ranges
         self.log_tracking = log_tracking
         self.stale_threshold_minutes = stale_threshold
+        self.smart_activity_enabled = smart_activity
+        self.activity_analyzer = SmartActivityAnalyzer(activity_threshold, analysis_window) if smart_activity else None
         scan_interval = timedelta(seconds=update_interval)
         _LOGGER.debug("Setting coordinator update interval to %s", scan_interval)
         super().__init__(hass, _LOGGER, name=f"{DOMAIN}_dhcp", update_interval=scan_interval)
@@ -197,8 +213,11 @@ class TechnitiumDHCPCoordinator(DataUpdateCoordinator):
                         "scope": lease.get("scope", ""),
                         "type": lease_type,
                         "last_seen": None,  # Will be populated by DNS log query
-                        "is_stale": False,  # Will be calculated based on last_seen
+                        "is_stale": False,  # Will be calculated based on last_seen or activity score
                         "minutes_since_seen": 0,  # Minutes since last DNS activity
+                        "activity_score": 0,  # Smart activity score (0-100)
+                        "is_actively_used": False,  # Whether device is genuinely being used
+                        "activity_summary": "",  # Human-readable activity summary
                     }
                     processed_leases.append(processed_lease)
                     _LOGGER.debug("Added lease for tracking: IP=%s, MAC=%s, hostname=%s, type=%s", 
@@ -232,7 +251,7 @@ class TechnitiumDHCPCoordinator(DataUpdateCoordinator):
             raise UpdateFailed(f"Error fetching DHCP data: {err}") from err
 
     async def _get_last_seen_for_devices(self, processed_leases):
-        """Query DNS logs to get last seen times for devices using batch processing."""
+        """Query DNS logs to get last seen times and activity analysis for devices."""
         if not self.log_tracking:
             _LOGGER.debug("DNS log tracking disabled, skipping last seen queries")
             return processed_leases
@@ -265,48 +284,109 @@ class TechnitiumDHCPCoordinator(DataUpdateCoordinator):
                 # Return early, leaving all devices with default values
                 return processed_leases
             
-            # Single batch call to get last seen times for all devices
-            # Start with a shorter time window (6 hours) for better performance
-            last_seen_times = await self.api.get_last_seen_for_multiple_ips(ip_addresses, hours_back=6)
-            
-            # Update all leases with the results
-            for ip_address, lease in ip_to_lease_map.items():
-                last_seen = last_seen_times.get(ip_address)
+            # Get DNS logs for smart activity analysis
+            if self.smart_activity_enabled and self.activity_analyzer:
+                _LOGGER.info("Performing smart activity analysis for %d devices", len(ip_addresses))
                 
-                if last_seen:
-                    lease["last_seen"] = last_seen
-                    _LOGGER.debug("Device %s last seen at %s", ip_address, last_seen)
+                # Get comprehensive DNS logs for activity analysis
+                analysis_window_hours = max(1, self.activity_analyzer.analysis_window_minutes / 60)
+                dns_logs = await self.api.get_dns_logs_for_analysis(hours_back=analysis_window_hours)
+                
+                if dns_logs:
+                    # Perform batch activity analysis
+                    activity_results = analyze_batch_device_activity(
+                        dns_logs, ip_addresses, self.activity_analyzer
+                    )
                     
-                    # Calculate if device is stale
-                    try:
-                        last_seen_dt = datetime.fromisoformat(last_seen.replace('Z', '+00:00'))
-                        now = datetime.now(last_seen_dt.tzinfo)
-                        minutes_since_seen = (now - last_seen_dt).total_seconds() / 60
-                        lease["is_stale"] = minutes_since_seen > self.stale_threshold_minutes
-                        lease["minutes_since_seen"] = int(minutes_since_seen)
-                        _LOGGER.debug("Device %s: %d minutes since last seen, stale=%s", 
-                                    ip_address, int(minutes_since_seen), lease["is_stale"])
-                    except Exception as e:
-                        _LOGGER.debug("Error parsing last seen time for %s: %s", ip_address, e)
-                        lease["is_stale"] = False
-                        lease["minutes_since_seen"] = 0
+                    # Update leases with activity analysis
+                    for ip_address, lease in ip_to_lease_map.items():
+                        activity_data = activity_results.get(ip_address, {})
+                        
+                        lease["activity_score"] = activity_data.get("activity_score", 0)
+                        lease["is_actively_used"] = activity_data.get("is_actively_used", False)
+                        lease["activity_summary"] = activity_data.get("analysis_summary", "No analysis")
+                        
+                        # Use smart activity for staleness determination
+                        lease["is_stale"] = not activity_data.get("is_actively_used", False)
+                        
+                        _LOGGER.debug(
+                            "Device %s: activity_score=%.1f, actively_used=%s, summary='%s'",
+                            ip_address, lease["activity_score"], 
+                            lease["is_actively_used"], lease["activity_summary"]
+                        )
+                        
+                    _LOGGER.info("Smart activity analysis completed for %d devices", len(ip_addresses))
                 else:
-                    _LOGGER.debug("No DNS log entries found for device %s", ip_address)
-                    lease["last_seen"] = None
-                    lease["is_stale"] = True  # No DNS activity = stale
-                    lease["minutes_since_seen"] = 9999
-            
-            _LOGGER.info("Batch DNS log processing completed successfully for %d devices", len(ip_addresses))
+                    _LOGGER.warning("No DNS logs available for smart activity analysis")
+                    # Fall back to basic last seen tracking
+                    await self._perform_basic_last_seen_tracking(ip_addresses, ip_to_lease_map)
+            else:
+                # Perform basic last seen tracking without smart activity
+                await self._perform_basic_last_seen_tracking(ip_addresses, ip_to_lease_map)
             
         except Exception as e:
-            _LOGGER.error("Error in batch DNS log query: %s", e, exc_info=True)
-            # Fall back to marking all devices as not stale on error
+            _LOGGER.error("Error in DNS log processing: %s", e, exc_info=True)
+            # Fall back to marking all devices based on DHCP presence only
             for lease in processed_leases:
                 lease["last_seen"] = None
                 lease["is_stale"] = False
                 lease["minutes_since_seen"] = 0
+                lease["activity_score"] = 50  # Neutral score
+                lease["is_actively_used"] = True  # Assume active if DHCP lease exists
+                lease["activity_summary"] = "DHCP lease active (DNS analysis failed)"
+        
+        # Log summary statistics
+        if self.smart_activity_enabled:
+            active_count = sum(1 for lease in processed_leases if lease.get("is_actively_used", False))
+            avg_score = sum(lease.get("activity_score", 0) for lease in processed_leases) / len(processed_leases) if processed_leases else 0
+            _LOGGER.info("Activity analysis summary: %d/%d devices actively used, average score: %.1f", 
+                        active_count, len(processed_leases), avg_score)
         
         return processed_leases
+    
+    async def _perform_basic_last_seen_tracking(self, ip_addresses, ip_to_lease_map):
+        """Perform basic last seen tracking without smart activity analysis."""
+        _LOGGER.info("Performing basic last seen tracking for %d devices", len(ip_addresses))
+        
+        # Single batch call to get last seen times for all devices
+        # Start with a shorter time window (6 hours) for better performance
+        last_seen_times = await self.api.get_last_seen_for_multiple_ips(ip_addresses, hours_back=6)
+        
+        # Update all leases with the results
+        for ip_address, lease in ip_to_lease_map.items():
+            last_seen = last_seen_times.get(ip_address)
+            
+            if last_seen:
+                lease["last_seen"] = last_seen
+                _LOGGER.debug("Device %s last seen at %s", ip_address, last_seen)
+                
+                # Calculate if device is stale based on time threshold
+                try:
+                    last_seen_dt = datetime.fromisoformat(last_seen.replace('Z', '+00:00'))
+                    now = datetime.now(last_seen_dt.tzinfo)
+                    minutes_since_seen = (now - last_seen_dt).total_seconds() / 60
+                    lease["is_stale"] = minutes_since_seen > self.stale_threshold_minutes
+                    lease["minutes_since_seen"] = int(minutes_since_seen)
+                    lease["activity_score"] = 100 if not lease["is_stale"] else 0  # Binary score
+                    lease["is_actively_used"] = not lease["is_stale"]
+                    lease["activity_summary"] = f"Last seen {int(minutes_since_seen)} minutes ago"
+                    _LOGGER.debug("Device %s: %d minutes since last seen, stale=%s", 
+                                ip_address, int(minutes_since_seen), lease["is_stale"])
+                except Exception as e:
+                    _LOGGER.debug("Error parsing last seen time for %s: %s", ip_address, e)
+                    lease["is_stale"] = False
+                    lease["minutes_since_seen"] = 0
+                    lease["activity_score"] = 50
+                    lease["is_actively_used"] = True
+                    lease["activity_summary"] = "Recent DHCP activity"
+            else:
+                _LOGGER.debug("No DNS log entries found for device %s", ip_address)
+                lease["last_seen"] = None
+                lease["is_stale"] = True  # No DNS activity = stale
+                lease["minutes_since_seen"] = 9999
+                lease["activity_score"] = 0
+                lease["is_actively_used"] = False
+                lease["activity_summary"] = "No recent DNS activity"
 
 
 class TechnitiumDHCPDeviceTracker(CoordinatorEntity, ScannerEntity):
@@ -361,14 +441,21 @@ class TechnitiumDHCPDeviceTracker(CoordinatorEntity, ScannerEntity):
             
         for lease in self.coordinator.data:
             if lease.get("mac_address") == self._mac_address:
-                # If DNS log tracking is enabled, consider staleness
-                if lease.get("is_stale") is not None:
+                # If smart activity analysis is enabled, use activity-based connection status
+                if self.coordinator.smart_activity_enabled and lease.get("activity_score") is not None:
+                    is_actively_used = lease.get("is_actively_used", False)
+                    _LOGGER.debug("Device %s: smart activity analysis - actively_used=%s, score=%.1f - marking as %s", 
+                                self._name, is_actively_used, lease.get("activity_score", 0),
+                                "connected" if is_actively_used else "disconnected")
+                    return is_actively_used
+                # If DNS log tracking is enabled but smart activity disabled, consider staleness
+                elif lease.get("is_stale") is not None:
                     is_stale = lease.get("is_stale", False)
                     _LOGGER.debug("Device %s: found lease, is_stale=%s - marking as %s", 
                                 self._name, is_stale, "disconnected" if is_stale else "connected")
                     return not is_stale
                 else:
-                    _LOGGER.debug("Device %s: found active lease (no staleness check) - marking as connected", self._name)
+                    _LOGGER.debug("Device %s: found active lease (no activity/staleness check) - marking as connected", self._name)
                     return True
         
         _LOGGER.debug("Device %s: no active lease found - marking as disconnected", self._name)
@@ -739,3 +826,127 @@ class TechnitiumDHCPDeviceMinutesSinceSeenSensor(TechnitiumDHCPDeviceDiagnosticS
     def icon(self):
         """Return the icon for this sensor."""
         return "mdi:timer-outline"
+
+
+class TechnitiumDHCPDeviceActivityScoreSensor(TechnitiumDHCPDeviceDiagnosticSensor):
+    """Activity Score diagnostic sensor for a DHCP device."""
+
+    def __init__(self, coordinator, mac_address, server_name, entry_id, device_name):
+        """Initialize the activity score sensor."""
+        super().__init__(coordinator, mac_address, server_name, entry_id, "activity_score", device_name)
+
+    @property
+    def name(self):
+        """Return the name of the sensor."""
+        return f"{self._device_name} Activity Score"
+
+    @property
+    def unique_id(self):
+        """Return a unique ID."""
+        mac_clean = self._mac_address.replace(':', '').lower()
+        return f"technitiumdns_dhcp_{mac_clean}_activity_score"
+
+    @property
+    def native_value(self):
+        """Return the activity score."""
+        device_data = self._get_device_data()
+        return device_data.get("activity_score", 0) if device_data else None
+
+    @property
+    def native_unit_of_measurement(self):
+        """Return the unit of measurement."""
+        return "points"
+
+    @property
+    def icon(self):
+        """Return the icon for this sensor."""
+        device_data = self._get_device_data()
+        if device_data:
+            score = device_data.get("activity_score", 0)
+            if score >= 75:
+                return "mdi:account-check"
+            elif score >= 50:
+                return "mdi:account"
+            elif score >= 25:
+                return "mdi:account-outline"
+            else:
+                return "mdi:account-off"
+        return "mdi:account-question"
+
+    @property
+    def extra_state_attributes(self):
+        """Return additional attributes."""
+        device_data = self._get_device_data()
+        if device_data and device_data.get("activity_score", 0) > 0:
+            return {
+                "activity_summary": device_data.get("activity_summary", ""),
+                "is_actively_used": device_data.get("is_actively_used", False),
+                "score_breakdown": device_data.get("score_breakdown", {}),
+                "threshold": self.coordinator.activity_analyzer.score_threshold if self.coordinator.activity_analyzer else "N/A"
+            }
+        return {}
+
+
+class TechnitiumDHCPDeviceIsActivelyUsedSensor(TechnitiumDHCPDeviceDiagnosticSensor):
+    """Is Actively Used diagnostic sensor for a DHCP device."""
+
+    def __init__(self, coordinator, mac_address, server_name, entry_id, device_name):
+        """Initialize the actively used sensor."""
+        super().__init__(coordinator, mac_address, server_name, entry_id, "is_actively_used", device_name)
+
+    @property
+    def name(self):
+        """Return the name of the sensor."""
+        return f"{self._device_name} Is Actively Used"
+
+    @property
+    def unique_id(self):
+        """Return a unique ID."""
+        mac_clean = self._mac_address.replace(':', '').lower()
+        return f"technitiumdns_dhcp_{mac_clean}_is_actively_used"
+
+    @property
+    def native_value(self):
+        """Return whether the device is actively used."""
+        device_data = self._get_device_data()
+        if device_data:
+            return "Yes" if device_data.get("is_actively_used", False) else "No"
+        return None
+
+    @property
+    def icon(self):
+        """Return the icon for this sensor."""
+        device_data = self._get_device_data()
+        if device_data and device_data.get("is_actively_used", False):
+            return "mdi:account-check"
+        return "mdi:account-off"
+
+
+class TechnitiumDHCPDeviceActivitySummarySensor(TechnitiumDHCPDeviceDiagnosticSensor):
+    """Activity Summary diagnostic sensor for a DHCP device."""
+
+    def __init__(self, coordinator, mac_address, server_name, entry_id, device_name):
+        """Initialize the activity summary sensor."""
+        super().__init__(coordinator, mac_address, server_name, entry_id, "activity_summary", device_name)
+
+    @property
+    def name(self):
+        """Return the name of the sensor."""
+        return f"{self._device_name} Activity Summary"
+
+    @property
+    def unique_id(self):
+        """Return a unique ID."""
+        mac_clean = self._mac_address.replace(':', '').lower()
+        return f"technitiumdns_dhcp_{mac_clean}_activity_summary"
+
+    @property
+    def native_value(self):
+        """Return the activity summary."""
+        device_data = self._get_device_data()
+        return device_data.get("activity_summary", "No activity data") if device_data else None
+
+    @property
+    def icon(self):
+        """Return the icon for this sensor."""
+        return "mdi:text-box-outline"

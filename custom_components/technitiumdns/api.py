@@ -597,3 +597,65 @@ class TechnitiumDNSApi:
             params["clientIpAddress"] = client_ip
             
         return await self.fetch_data("api/logs/query", params)
+
+    async def get_dns_logs_for_analysis(self, hours_back=2):
+        """Get comprehensive DNS logs for smart activity analysis.
+        
+        Args:
+            hours_back: How many hours back to search (default 2 for analysis window)
+            
+        Returns:
+            list: List of DNS log entries with full details for analysis
+        """
+        from datetime import datetime, timedelta
+        
+        # Calculate start time
+        end_time = datetime.utcnow()
+        start_time = end_time - timedelta(hours=hours_back)
+        
+        # First, test if DNS logs API is available
+        api_test = await self.test_dns_logs_api()
+        
+        if not api_test.get("available", False):
+            _LOGGER.warning("DNS logs API is not available for activity analysis: %s", 
+                          api_test.get("message", "Unknown error"))
+            return []
+        
+        try:
+            # Use higher limit for analysis (need more comprehensive data)
+            analysis_limit = 5000
+            
+            _LOGGER.debug("Getting DNS logs for activity analysis: %s to %s (%d hours, limit=%d)", 
+                         start_time.isoformat() + "Z", end_time.isoformat() + "Z", 
+                         hours_back, analysis_limit)
+            
+            # First, try to find DNS apps that support logging
+            logging_apps = await self.get_dns_logging_apps()
+            
+            if logging_apps:
+                _LOGGER.debug("Using DNS app '%s' for activity analysis logs", logging_apps[0]["name"])
+                first_app = logging_apps[0]
+                
+                # Use DNS app for comprehensive logging
+                logs_response = await self.get_dns_logs_via_app(
+                    app_name=first_app["name"],
+                    app_class=first_app["classPath"],
+                    start_date=start_time.isoformat() + "Z",
+                    end_date=end_time.isoformat() + "Z",
+                    limit=analysis_limit
+                )
+                
+                if logs_response.get("status") == "ok":
+                    dns_logs = logs_response.get("response", {}).get("entries", [])
+                    _LOGGER.info("Retrieved %d DNS log entries for activity analysis", len(dns_logs))
+                    return dns_logs
+                else:
+                    _LOGGER.warning("DNS app logs query failed: %s", logs_response.get("errorMessage"))
+                    return []
+            else:
+                _LOGGER.warning("No DNS apps with logging capability found for activity analysis")
+                return []
+                
+        except Exception as e:
+            _LOGGER.error("Error getting DNS logs for activity analysis: %s", e)
+            return []
