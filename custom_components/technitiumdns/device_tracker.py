@@ -429,13 +429,16 @@ class TechnitiumDHCPDeviceTracker(CoordinatorEntity, ScannerEntity):
         self._mac_address = lease_data.get("mac_address", "")
         self._hostname = lease_data.get("hostname", "")
         
-        # Create a friendly name
-        if self._hostname:
-            self._name = f"{self._hostname}"
+        # Debug MAC address handling
+        _LOGGER.debug("Device tracker init: MAC='%s', Hostname='%s'", self._mac_address, self._hostname)
+        
+        # Create a friendly name based on hostname first, then MAC
+        if self._hostname and self._hostname.strip():
+            self._name = self._hostname.replace('.home.internal', '').replace('.local', '')
         elif self._mac_address:
             self._name = f"Device_{self._mac_address.replace(':', '')[-6:]}"
         else:
-            self._name = f"Unknown_Device_{lease_data.get('ip_address', '')}"
+            self._name = f"Device_{lease_data.get('ip_address', '').replace('.', '_')}"
         
         _LOGGER.info("Created device tracker '%s' for MAC %s (IP: %s)", 
                     self._name, self._mac_address, lease_data.get('ip_address'))
@@ -543,14 +546,21 @@ class TechnitiumDHCPDeviceTracker(CoordinatorEntity, ScannerEntity):
     def device_info(self):
         """Return device information for this entity."""
         # Create proper device registry entry for each DHCP device
-        if self._mac_address:
+        _LOGGER.debug("Device %s: Creating device_info, MAC='%s', has_MAC=%s", 
+                     self._name, self._mac_address, bool(self._mac_address))
+        
+        if self._mac_address and self._mac_address.strip():
             normalized_mac = normalize_mac_address(self._mac_address)
             mac_clean = normalized_mac.replace(':', '').lower()
             device_id = f"{DOMAIN}_dhcp_device_{mac_clean}"
+            _LOGGER.debug("Device %s: Using MAC-based device ID: %s (from MAC: %s)", 
+                         self._name, device_id, self._mac_address)
         else:
             # Fallback to IP-based ID if no MAC
             ip_clean = self._lease_data.get('ip_address', '').replace('.', '_')
             device_id = f"{DOMAIN}_dhcp_device_ip_{ip_clean}"
+            _LOGGER.warning("Device %s: No MAC address available (MAC='%s'), using IP-based device ID: %s", 
+                           self._name, self._mac_address, device_id)
         
         # Try to determine device manufacturer from MAC address OUI if possible
         manufacturer = "Unknown"
