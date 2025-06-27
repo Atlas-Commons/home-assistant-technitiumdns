@@ -12,38 +12,50 @@ from homeassistant.helpers.entity import DeviceInfo, EntityCategory
 from homeassistant.exceptions import ConfigEntryNotReady
 
 from .const import DOMAIN, SENSOR_TYPES
-from .utils import normalize_mac_address
+from .utils import normalize_mac_address, parse_timestamp
 from .api import TechnitiumDNSApi
 
 _LOGGER = logging.getLogger(__name__)
 
 SCAN_INTERVAL = timedelta(minutes=1)
 
-def parse_timestamp(timestamp_str):
-    """Parse a timestamp string to a datetime object.
+async def _create_device_sensors(leases, dhcp_coordinator, server_name, entry_id):
+    """Create diagnostic sensors for a list of device leases."""
+    device_sensors = []
     
-    TechnitiumDNS API returns timestamps in various formats.
-    Returns None if the timestamp cannot be parsed.
-    """
-    if not timestamp_str:
-        return None
+    for lease in leases:
+        mac_address = lease.get("mac_address", "")
+        hostname = lease.get("hostname", "")
+        ip_address = lease.get("ip_address", "")
+        
+        # Create a device name consistent with device tracker
+        if hostname:
+            device_name = hostname
+        elif mac_address:
+            device_name = f"Device_{mac_address.replace(':', '')[-6:]}"
+        else:
+            device_name = f"Unknown_Device_{ip_address}"
+        
+        _LOGGER.info("Creating diagnostic sensors for device: %s (MAC: %s, IP: %s)", device_name, mac_address, ip_address)
+        
+        diagnostic_sensors = [
+            TechnitiumDHCPDeviceIPSensor(dhcp_coordinator, mac_address, server_name, entry_id, device_name),
+            TechnitiumDHCPDeviceMaCSensor(dhcp_coordinator, mac_address, server_name, entry_id, device_name),
+            TechnitiumDHCPDeviceHostnameSensor(dhcp_coordinator, mac_address, server_name, entry_id, device_name),
+            TechnitiumDHCPDeviceLeaseObtainedSensor(dhcp_coordinator, mac_address, server_name, entry_id, device_name),
+            TechnitiumDHCPDeviceLeaseExpiresSensor(dhcp_coordinator, mac_address, server_name, entry_id, device_name),
+            TechnitiumDHCPDeviceLastSeenSensor(dhcp_coordinator, mac_address, server_name, entry_id, device_name),
+            TechnitiumDHCPDeviceIsStaleSensor(dhcp_coordinator, mac_address, server_name, entry_id, device_name),
+            TechnitiumDHCPDeviceMinutesSinceSeenSensor(dhcp_coordinator, mac_address, server_name, entry_id, device_name),
+            TechnitiumDHCPDeviceActivityScoreSensor(dhcp_coordinator, mac_address, server_name, entry_id, device_name),
+            TechnitiumDHCPDeviceIsActivelyUsedSensor(dhcp_coordinator, mac_address, server_name, entry_id, device_name),
+            TechnitiumDHCPDeviceActivitySummarySensor(dhcp_coordinator, mac_address, server_name, entry_id, device_name),
+        ]
+        
+        device_sensors.extend(diagnostic_sensors)
+        _LOGGER.info("Created %d diagnostic sensors for device %s", len(diagnostic_sensors), device_name)
     
-    try:
-        # Try to parse ISO 8601 format (e.g., "2024-01-15T10:30:00.000Z")
-        if timestamp_str.endswith('Z'):
-            timestamp_str = timestamp_str[:-1] + '+00:00'
-        
-        # Use Home Assistant's dt_util for timezone-aware parsing
-        dt = dt_util.parse_datetime(timestamp_str)
-        if dt:
-            return dt
-            
-        # Fallback: try standard ISO format parsing
-        return datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
-        
-    except (ValueError, TypeError) as e:
-        _LOGGER.warning("Failed to parse timestamp '%s': %s", timestamp_str, e)
-        return None
+    return device_sensors
 
 async def async_setup_entry(hass, entry, async_add_entities):
     """Set up TechnitiumDNS sensors: main DNS statistics and device diagnostic sensors."""
@@ -75,40 +87,10 @@ async def async_setup_entry(hass, entry, async_add_entities):
             device_sensors_created = False
             if dhcp_coordinator.data:
                 _LOGGER.info("DHCP coordinator has %d devices, creating diagnostic sensors", len(dhcp_coordinator.data))
-                for lease in dhcp_coordinator.data:
-                    mac_address = lease.get("mac_address", "")
-                    hostname = lease.get("hostname", "")
-                    ip_address = lease.get("ip_address", "")
-                    
-                    # Create a device name consistent with device tracker
-                    if hostname:
-                        device_name = hostname
-                    elif mac_address:
-                        device_name = f"Device_{mac_address.replace(':', '')[-6:]}"
-                    else:
-                        device_name = f"Unknown_Device_{ip_address}"
-                    
-                    _LOGGER.info("Creating diagnostic sensors for device: %s (MAC: %s, IP: %s)", device_name, mac_address, ip_address)
-                    
-                    diagnostic_sensors = [
-                        TechnitiumDHCPDeviceIPSensor(dhcp_coordinator, mac_address, server_name, entry.entry_id, device_name),
-                        TechnitiumDHCPDeviceMaCSensor(dhcp_coordinator, mac_address, server_name, entry.entry_id, device_name),
-                        TechnitiumDHCPDeviceHostnameSensor(dhcp_coordinator, mac_address, server_name, entry.entry_id, device_name),
-                        TechnitiumDHCPDeviceLeaseObtainedSensor(dhcp_coordinator, mac_address, server_name, entry.entry_id, device_name),
-                        TechnitiumDHCPDeviceLeaseExpiresSensor(dhcp_coordinator, mac_address, server_name, entry.entry_id, device_name),
-                        TechnitiumDHCPDeviceLastSeenSensor(dhcp_coordinator, mac_address, server_name, entry.entry_id, device_name),
-                        TechnitiumDHCPDeviceIsStaleSensor(dhcp_coordinator, mac_address, server_name, entry.entry_id, device_name),
-                        TechnitiumDHCPDeviceMinutesSinceSeenSensor(dhcp_coordinator, mac_address, server_name, entry.entry_id, device_name),
-                        TechnitiumDHCPDeviceActivityScoreSensor(dhcp_coordinator, mac_address, server_name, entry.entry_id, device_name),
-                        TechnitiumDHCPDeviceIsActivelyUsedSensor(dhcp_coordinator, mac_address, server_name, entry.entry_id, device_name),
-                        TechnitiumDHCPDeviceActivitySummarySensor(dhcp_coordinator, mac_address, server_name, entry.entry_id, device_name),
-                    ]
-                    
-                    sensors.extend(diagnostic_sensors)
-                    _LOGGER.info("Created %d diagnostic sensors for device %s", len(diagnostic_sensors), device_name)
-                
+                device_sensors = await _create_device_sensors(dhcp_coordinator.data, dhcp_coordinator, server_name, entry.entry_id)
+                sensors.extend(device_sensors)
                 device_sensors_created = True
-                _LOGGER.info("Created %d total device diagnostic sensors for %d devices", len(sensors) - len(SENSOR_TYPES), len(dhcp_coordinator.data))
+                _LOGGER.info("Created %d device diagnostic sensors from coordinator data", len(device_sensors))
             
             # If no devices in coordinator data yet, try to find existing device tracker entities
             # and create sensors for them
@@ -886,40 +868,7 @@ class DynamicSensorManager:
     
     async def _create_sensors_for_devices(self, devices):
         """Create diagnostic sensors for a list of new devices."""
-        new_sensors = []
-        
-        for lease in devices:
-            mac_address = lease.get("mac_address", "")
-            hostname = lease.get("hostname", "")
-            ip_address = lease.get("ip_address", "")
-            
-            # Create a device name consistent with device tracker
-            if hostname:
-                device_name = hostname
-            elif mac_address:
-                device_name = f"Device_{mac_address.replace(':', '')[-6:]}"
-            else:
-                device_name = f"Unknown_Device_{ip_address}"
-            
-            _LOGGER.info("Creating diagnostic sensors for new device: %s (MAC: %s, IP: %s)", 
-                        device_name, mac_address, ip_address)
-            
-            diagnostic_sensors = [
-                TechnitiumDHCPDeviceIPSensor(self.dhcp_coordinator, mac_address, self.server_name, self.entry.entry_id, device_name),
-                TechnitiumDHCPDeviceMaCSensor(self.dhcp_coordinator, mac_address, self.server_name, self.entry.entry_id, device_name),
-                TechnitiumDHCPDeviceHostnameSensor(self.dhcp_coordinator, mac_address, self.server_name, self.entry.entry_id, device_name),
-                TechnitiumDHCPDeviceLeaseObtainedSensor(self.dhcp_coordinator, mac_address, self.server_name, self.entry.entry_id, device_name),
-                TechnitiumDHCPDeviceLeaseExpiresSensor(self.dhcp_coordinator, mac_address, self.server_name, self.entry.entry_id, device_name),
-                TechnitiumDHCPDeviceLastSeenSensor(self.dhcp_coordinator, mac_address, self.server_name, self.entry.entry_id, device_name),
-                TechnitiumDHCPDeviceIsStaleSensor(self.dhcp_coordinator, mac_address, self.server_name, self.entry.entry_id, device_name),
-                TechnitiumDHCPDeviceMinutesSinceSeenSensor(self.dhcp_coordinator, mac_address, self.server_name, self.entry.entry_id, device_name),
-                TechnitiumDHCPDeviceActivityScoreSensor(self.dhcp_coordinator, mac_address, self.server_name, self.entry.entry_id, device_name),
-                TechnitiumDHCPDeviceIsActivelyUsedSensor(self.dhcp_coordinator, mac_address, self.server_name, self.entry.entry_id, device_name),
-                TechnitiumDHCPDeviceActivitySummarySensor(self.dhcp_coordinator, mac_address, self.server_name, self.entry.entry_id, device_name),
-            ]
-            
-            new_sensors.extend(diagnostic_sensors)
-            _LOGGER.info("Created %d diagnostic sensors for new device %s", len(diagnostic_sensors), device_name)
+        new_sensors = await _create_device_sensors(devices, self.dhcp_coordinator, self.server_name, self.entry.entry_id)
         
         if new_sensors:
             _LOGGER.info("Adding %d new sensors to Home Assistant", len(new_sensors))

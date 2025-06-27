@@ -117,9 +117,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
 class TechnitiumDHCPCoordinator(DataUpdateCoordinator):
     """Class to manage fetching TechnitiumDNS DHCP data."""
 
-    def __init__(self, hass, api, update_interval, ip_filter_mode="disabled", ip_ranges="", 
-                 log_tracking=False, stale_threshold=60, smart_activity=True, 
-                 activity_threshold=25, analysis_window=30):
+    def __init__(self, hass, api, update_interval, ip_filter_mode="disabled", ip_ranges="", log_tracking=False, stale_threshold=60, smart_activity=True, activity_threshold=25, analysis_window=30):
         """Initialize."""
         _LOGGER.info("Initializing TechnitiumDHCPCoordinator with interval=%s, filter_mode=%s, log_tracking=%s, stale_threshold=%s, smart_activity=%s, activity_threshold=%s, analysis_window=%s", 
                     update_interval, ip_filter_mode, log_tracking, stale_threshold, smart_activity, activity_threshold, analysis_window)
@@ -238,9 +236,7 @@ class TechnitiumDHCPCoordinator(DataUpdateCoordinator):
                         "activity_summary": "",  # Human-readable activity summary
                     }
                     processed_leases.append(processed_lease)
-                    _LOGGER.debug("Added lease for tracking: IP=%s, MAC=%s, hostname=%s, type=%s", 
-                                 ip_address, processed_lease["mac_address"], processed_lease["hostname"], 
-                                 lease_type)
+                    _LOGGER.debug("Added lease for tracking: IP=%s, MAC=%s, hostname=%s, type=%s", ip_address, processed_lease["mac_address"], processed_lease["hostname"], lease_type)
                 else:
                     _LOGGER.debug("Skipping lease: %s", skip_reason)
                     skipped_count += 1
@@ -251,8 +247,7 @@ class TechnitiumDHCPCoordinator(DataUpdateCoordinator):
             # Log stale device summary if log tracking is enabled
             if self.log_tracking:
                 stale_count = sum(1 for lease in processed_leases if lease.get("is_stale", False))
-                _LOGGER.info("DNS activity summary: %d devices total, %d are stale (>%d min since last seen)", 
-                           len(processed_leases), stale_count, self.stale_threshold_minutes)
+                _LOGGER.info("DNS activity summary: %d devices total, %d are stale (>%d min since last seen)", len(processed_leases), stale_count, self.stale_threshold_minutes)
             
             _LOGGER.info("DHCP data processing complete: %d active leases, %d filtered, %d skipped", 
                         len(processed_leases), filtered_count, skipped_count)
@@ -270,7 +265,7 @@ class TechnitiumDHCPCoordinator(DataUpdateCoordinator):
                 if mac:
                     normalized_mac = normalize_mac_address(mac)
                     current_macs.add(normalized_mac)
-                    _LOGGER.debug("Device tracker normalized MAC %s -> %s", mac, normalized_mac)
+                    # _LOGGER.debug("Device tracker normalized MAC %s -> %s", mac, normalized_mac)
             _LOGGER.debug("Device tracker collected %d normalized MAC addresses: %s", 
                         len(current_macs), sorted(current_macs))
             await self._cleanup_orphaned_entities(current_macs)

@@ -2,7 +2,10 @@
 
 import ipaddress
 import logging
+from datetime import datetime
 from typing import List, Set
+
+from homeassistant.util import dt as dt_util
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -171,3 +174,30 @@ def validate_ip_ranges_config(ip_ranges_str: str) -> tuple[bool, str]:
         
     except Exception as e:
         return False, f"Configuration error: {str(e)}"
+
+
+def parse_timestamp(timestamp_str):
+    """Parse a timestamp string to a datetime object.
+    
+    TechnitiumDNS API returns timestamps in various formats.
+    Returns None if the timestamp cannot be parsed.
+    """
+    if not timestamp_str:
+        return None
+    
+    try:
+        # Try to parse ISO 8601 format (e.g., "2024-01-15T10:30:00.000Z")
+        if timestamp_str.endswith('Z'):
+            timestamp_str = timestamp_str[:-1] + '+00:00'
+        
+        # Use Home Assistant's dt_util for timezone-aware parsing
+        dt = dt_util.parse_datetime(timestamp_str)
+        if dt:
+            return dt
+            
+        # Fallback: try standard ISO format parsing
+        return datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
+        
+    except (ValueError, TypeError) as e:
+        _LOGGER.warning("Failed to parse timestamp '%s': %s", timestamp_str, e)
+        return None
