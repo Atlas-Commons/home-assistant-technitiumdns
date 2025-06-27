@@ -323,132 +323,96 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         return True
 
 async def async_cleanup_orphaned_entities(hass: HomeAssistant, entry_id: str, current_devices: set):
-    """Clean up entities for devices that no longer match IP filter criteria.
+    """Log information about devices that should be cleaned up.
+    
+    Note: Instead of manually manipulating entity registry (which can cause issues),
+    we now rely on the coordinator update pattern to naturally handle entity lifecycle.
+    Device entities will become unavailable when their data is no longer in the coordinator,
+    and can be manually removed by the user if needed.
     
     Args:
         hass: Home Assistant instance
         entry_id: Config entry ID
         current_devices: Set of MAC addresses for devices that should exist
     """
-    _LOGGER.info("Starting entity cleanup for entry %s", entry_id)
-    _LOGGER.debug("Current devices to keep: %s (%d total)", sorted(current_devices), len(current_devices))
+    _LOGGER.info("Checking for orphaned entities for entry %s", entry_id)
+    _LOGGER.debug("Current devices that should exist: %s (%d total)", sorted(current_devices), len(current_devices))
     
     entity_registry = er.async_get(hass)
-    device_registry = dr.async_get(hass)
     
-    # Find all entities belonging to this integration
-    entities_to_remove = []
-    devices_to_check = set()
+    # Find all DHCP entities belonging to this integration
+    dhcp_entities = []
     total_entities_checked = 0
-    dhcp_entities_found = 0
-    
-    _LOGGER.debug("Scanning entity registry for entities belonging to entry %s", entry_id)
     
     for entity_id, entity in entity_registry.entities.items():
         if entity.config_entry_id == entry_id:
             total_entities_checked += 1
-            _LOGGER.debug("Checking entity %s (unique_id: %s, platform: %s)", 
-                        entity_id, entity.unique_id, entity.platform)
             
-            # Check if this is a DHCP device entity (has MAC in unique_id)
-            if ("dhcp_device_" in str(entity.unique_id) or 
-                "technitiumdns_dhcp_" in str(entity.unique_id)):
-                dhcp_entities_found += 1
-                _LOGGER.debug("Found DHCP entity: %s with unique_id: %s", entity_id, entity.unique_id)
-                
-                # Extract MAC address from unique_id
-                mac_from_entity = None
-                if "dhcp_device_" in str(entity.unique_id):
-                    # Device tracker format: dhcp_device_{mac_address}
-                    parts = str(entity.unique_id).split("dhcp_device_")
-                    if len(parts) > 1:
-                        mac_raw = parts[1].split("_")[0]  # Handle any suffixes
-                        _LOGGER.debug("Extracted MAC raw from device tracker: %s", mac_raw)
-                        
-                        # Normalize MAC address to uppercase with colons
-                        mac_from_entity = normalize_mac_address(mac_raw)
-                        _LOGGER.debug("Normalized MAC %s -> %s", mac_raw, mac_from_entity)
-                
-                elif "technitiumdns_dhcp_" in str(entity.unique_id):
-                    # Sensor format: technitiumdns_dhcp_{mac_address}_{sensor_type}
-                    parts = str(entity.unique_id).split("technitiumdns_dhcp_")
-                    if len(parts) > 1:
-                        mac_raw = parts[1].split("_")[0]  # Get MAC part before any sensor suffix
-                        _LOGGER.debug("Extracted MAC raw from sensor: %s", mac_raw)
-                        
-                        # Normalize MAC address to uppercase with colons
-                        mac_from_entity = normalize_mac_address(mac_raw)
-                        _LOGGER.debug("Normalized MAC %s -> %s", mac_raw, mac_from_entity)
-                
-                # Check if this device should still exist
-                if mac_from_entity:
-                    if mac_from_entity not in current_devices:
-                        _LOGGER.debug("MAC %s not in current devices - marking entity %s for removal", 
-                                    mac_from_entity, entity_id)
-                        _LOGGER.info("Marking entity %s for removal (MAC %s no longer tracked)", 
-                                   entity_id, mac_from_entity)
-                        entities_to_remove.append(entity_id)
-                        
-                        # Track device for potential cleanup
-                        if entity.device_id:
-                            devices_to_check.add(entity.device_id)
-                            _LOGGER.debug("Added device %s to cleanup check list", entity.device_id)
-                    else:
-                        _LOGGER.debug("MAC %s found in current devices - keeping entity %s", 
-                                    mac_from_entity, entity_id)
-                else:
-                    _LOGGER.debug("Could not extract MAC address from entity %s", entity_id)
+            # Check if this is a DHCP device entity using the new standardized unique_id patterns
+            unique_id_str = str(entity.unique_id)
+            if ("_dhcp_device_" in unique_id_str or "_dhcp_sensor_" in unique_id_str or "_device_tracker_" in unique_id_str):
+                dhcp_entities.append((entity_id, entity))
+    
+    _LOGGER.debug("Found %d DHCP entities out of %d total entities for this integration", 
+                 len(dhcp_entities), total_entities_checked)
+    
+    # Analyze which devices should be orphaned
+    orphaned_entities = []
+    current_entities = []
+    
+    for entity_id, entity in dhcp_entities:
+        mac_from_entity = None
+        unique_id_str = str(entity.unique_id)
+        
+        # Extract MAC from standardized unique_id patterns
+        if "_dhcp_device_" in unique_id_str:
+            # Format: {DOMAIN}_dhcp_device_{mac_clean}
+            parts = unique_id_str.split("_dhcp_device_")
+            if len(parts) > 1:
+                mac_clean = parts[1]
+                # Convert MAC back to normalized format
+                if len(mac_clean) == 12:
+                    mac_formatted = ":".join([mac_clean[i:i+2] for i in range(0, 12, 2)]).upper()
+                    mac_from_entity = normalize_mac_address(mac_formatted)
+        
+        elif "_dhcp_sensor_" in unique_id_str:
+            # Format: {DOMAIN}_dhcp_sensor_{mac_clean}_{sensor_type}
+            parts = unique_id_str.split("_dhcp_sensor_")
+            if len(parts) > 1:
+                mac_clean = parts[1].split("_")[0]  # Get MAC part before sensor type
+                if len(mac_clean) == 12:
+                    mac_formatted = ":".join([mac_clean[i:i+2] for i in range(0, 12, 2)]).upper()
+                    mac_from_entity = normalize_mac_address(mac_formatted)
+        
+        elif "_device_tracker_" in unique_id_str:
+            # Format: {DOMAIN}_device_tracker_{mac_clean}
+            parts = unique_id_str.split("_device_tracker_")
+            if len(parts) > 1:
+                mac_clean = parts[1]
+                if len(mac_clean) == 12:
+                    mac_formatted = ":".join([mac_clean[i:i+2] for i in range(0, 12, 2)]).upper()
+                    mac_from_entity = normalize_mac_address(mac_formatted)
+        
+        # Check if this entity should still exist
+        if mac_from_entity:
+            if mac_from_entity not in current_devices:
+                orphaned_entities.append((entity_id, mac_from_entity, entity.platform))
             else:
-                _LOGGER.debug("Entity %s is not a DHCP entity - skipping", entity_id)
+                current_entities.append((entity_id, mac_from_entity, entity.platform))
     
-    _LOGGER.debug("Entity scan complete: checked %d total entities, found %d DHCP entities, marked %d for removal", 
-                total_entities_checked, dhcp_entities_found, len(entities_to_remove))
-    
-    # Remove orphaned entities
-    for entity_id in entities_to_remove:
-        _LOGGER.debug("Removing orphaned entity: %s", entity_id)
-        _LOGGER.info("Removing orphaned entity: %s", entity_id)
-        entity_registry.async_remove(entity_id)
-    
-    _LOGGER.debug("Checking %d devices for potential cleanup", len(devices_to_check))
-    
-    # Clean up devices that have no remaining entities
-    devices_to_remove = []
-    for device_id in devices_to_check:
-        device = device_registry.async_get(device_id)
-        if device:
-            _LOGGER.debug("Checking device %s (%s) for remaining entities", device_id, device.name)
-            # Check if device has any remaining entities
-            remaining_entities = [
-                e for e in entity_registry.entities.values() 
-                if e.device_id == device_id and e.config_entry_id == entry_id
-            ]
-            _LOGGER.debug("Device %s has %d remaining entities: %s", 
-                        device.name, len(remaining_entities), 
-                        [e.entity_id for e in remaining_entities])
-            
-            if not remaining_entities:
-                _LOGGER.debug("Device %s has no remaining entities - marking for removal", device.name)
-                _LOGGER.info("Marking device %s for removal (no remaining entities)", device.name)
-                devices_to_remove.append(device_id)
-            else:
-                _LOGGER.debug("Device %s has remaining entities - keeping", device.name)
-        else:
-            _LOGGER.debug("Device %s not found in registry - may have been removed already", device_id)
-    
-    # Remove orphaned devices
-    for device_id in devices_to_remove:
-        device = device_registry.async_get(device_id)
-        device_name = device.name if device else f"device_{device_id}"
-        _LOGGER.debug("Removing orphaned device: %s (%s)", device_id, device_name)
-        _LOGGER.info("Removing orphaned device: %s", device_name)
-        device_registry.async_remove_device(device_id)
-    
-    if entities_to_remove or devices_to_remove:
-        _LOGGER.info("Cleanup completed: removed %d entities and %d devices", 
-                   len(entities_to_remove), len(devices_to_remove))
-        _LOGGER.debug("Removed entities: %s", entities_to_remove)
-        _LOGGER.debug("Removed devices: %s", [device_registry.async_get(d).name if device_registry.async_get(d) else f"device_{d}" for d in devices_to_remove])
+    # Log information about orphaned entities (but don't remove them)
+    if orphaned_entities:
+        _LOGGER.info("Found %d orphaned DHCP entities (devices no longer in coordinator data):", len(orphaned_entities))
+        for entity_id, mac, platform in orphaned_entities:
+            _LOGGER.info("  - %s (%s, MAC: %s) - will become unavailable automatically", entity_id, platform, mac)
+        _LOGGER.info("These entities will become 'unavailable' automatically when coordinator updates.")
+        _LOGGER.info("If you want to remove them permanently, you can do so manually from the HA UI.")
     else:
-        _LOGGER.debug("No orphaned entities or devices found")
-        _LOGGER.info("No orphaned entities or devices found")
+        _LOGGER.info("No orphaned DHCP entities found - all entities match current coordinator data")
+    
+    if current_entities:
+        _LOGGER.debug("Found %d current DHCP entities that should remain:", len(current_entities))
+        for entity_id, mac, platform in current_entities:
+            _LOGGER.debug("  - %s (%s, MAC: %s)", entity_id, platform, mac)
+    
+    _LOGGER.info("Entity cleanup analysis completed - relying on coordinator pattern for entity lifecycle management")

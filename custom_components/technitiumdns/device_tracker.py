@@ -448,10 +448,15 @@ class TechnitiumDHCPDeviceTracker(CoordinatorEntity, ScannerEntity):
     @property
     def unique_id(self):
         """Return a unique ID."""
-        mac_clean = self._mac_address.replace(':', '').lower() if self._mac_address else ""
-        ip_clean = self._lease_data.get('ip_address', '').replace('.', '_') if not mac_clean else ""
-        identifier = mac_clean or ip_clean or "unknown"
-        return f"technitiumdns_dhcp_{identifier}"
+        # Use normalized MAC address for consistent unique_id format
+        if self._mac_address:
+            normalized_mac = normalize_mac_address(self._mac_address)
+            mac_clean = normalized_mac.replace(':', '').lower()
+            return f"{DOMAIN}_device_tracker_{mac_clean}"
+        
+        # Fallback to IP if no MAC available (shouldn't happen in DHCP context)
+        ip_clean = self._lease_data.get('ip_address', '').replace('.', '_')
+        return f"{DOMAIN}_device_tracker_ip_{ip_clean}"
 
     @property
     def source_type(self):
@@ -537,12 +542,58 @@ class TechnitiumDHCPDeviceTracker(CoordinatorEntity, ScannerEntity):
     @property
     def device_info(self):
         """Return device information for this entity."""
+        # Create proper device registry entry for each DHCP device
+        if self._mac_address:
+            normalized_mac = normalize_mac_address(self._mac_address)
+            mac_clean = normalized_mac.replace(':', '').lower()
+            device_id = f"{DOMAIN}_dhcp_device_{mac_clean}"
+        else:
+            # Fallback to IP-based ID if no MAC
+            ip_clean = self._lease_data.get('ip_address', '').replace('.', '_')
+            device_id = f"{DOMAIN}_dhcp_device_ip_{ip_clean}"
+        
+        # Try to determine device manufacturer from MAC address OUI if possible
+        manufacturer = "Unknown"
+        if self._mac_address:
+            # Basic OUI lookup for common manufacturers (can be expanded)
+            mac_prefix = self._mac_address.replace(':', '').upper()[:6]
+            oui_map = {
+                "00215A": "Apple",
+                "3C0754": "Apple", 
+                "F0F61C": "Apple",
+                "DC86D8": "Raspberry Pi Foundation",
+                "B827EB": "Raspberry Pi Foundation",
+                "E45F01": "Raspberry Pi Foundation",
+                "00E04C": "Realtek",
+                "EC086B": "Intel",
+                "3417EB": "Intel",
+                "000C29": "VMware",
+                "005056": "VMware",
+            }
+            manufacturer = oui_map.get(mac_prefix, "Unknown")
+        
+        # Determine a reasonable model name
+        hostname = self._hostname or ""
+        if "raspberry" in hostname.lower() or "rpi" in hostname.lower():
+            model = "Raspberry Pi"
+        elif "iphone" in hostname.lower() or "ipad" in hostname.lower():
+            model = "iOS Device"
+        elif "android" in hostname.lower():
+            model = "Android Device"
+        elif "windows" in hostname.lower() or "pc" in hostname.lower():
+            model = "Windows PC"
+        elif "mac" in hostname.lower():
+            model = "Mac Computer"
+        else:
+            model = "Network Device"
+        
         return DeviceInfo(
-            identifiers={(DOMAIN, f"dhcp_device_{self._mac_address.replace(':', '').lower()}")},
+            identifiers={(DOMAIN, device_id)},
             name=self._name,
-            manufacturer="Unknown",
-            model="DHCP Client",
-            via_device=(DOMAIN, self._entry_id),
+            manufacturer=manufacturer,
+            model=model,
+            via_device=(DOMAIN, self._entry_id),  # Link to the TechnitiumDNS server device
+            configuration_url=None,  # Could add device management URL if available
         )
 
     @property
