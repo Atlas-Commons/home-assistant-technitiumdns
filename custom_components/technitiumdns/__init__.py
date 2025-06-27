@@ -18,14 +18,17 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     api = TechnitiumDNSApi(entry.data["api_url"], entry.data["token"])
     
     # Determine which platforms to load based on options
-    platforms = ["sensor", "button", "switch"]
+    platforms = ["button", "switch"]
     
-    # Add device_tracker if DHCP tracking is enabled
+    # Add device_tracker if DHCP tracking is enabled (load before sensor)
     dhcp_enabled = entry.options.get("enable_dhcp_tracking", False)
     _LOGGER.info("DHCP tracking enabled: %s", dhcp_enabled)
     if dhcp_enabled:
         platforms.append("device_tracker")
         _LOGGER.info("Added device_tracker platform to load list")
+    
+    # Always add sensor platform last so it can access other coordinators
+    platforms.append("sensor")
     
     _LOGGER.debug("Options: %s", entry.options)
     _LOGGER.info("Platforms to load: %s", platforms)
@@ -66,7 +69,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     try:
         # Get the platforms that were actually loaded during setup
         entry_data = hass.data[DOMAIN].get(entry.entry_id, {})
-        platforms = entry_data.get("loaded_platforms", ["sensor", "button", "switch"])
+        platforms = entry_data.get("loaded_platforms", ["button", "switch", "sensor"])
         
         # Only unload platforms that were actually loaded
         if platforms:
