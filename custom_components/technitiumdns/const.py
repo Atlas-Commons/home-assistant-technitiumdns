@@ -81,7 +81,7 @@ CONF_ACTIVITY_ANALYSIS_WINDOW = "activity_analysis_window"
 
 # Default values for smart activity
 DEFAULT_DHCP_SMART_ACTIVITY = True
-DEFAULT_ACTIVITY_SCORE_THRESHOLD = 25  # Score needed to consider device "actively used"
+DEFAULT_ACTIVITY_SCORE_THRESHOLD = 55  # Score needed to consider device "actively used"
 DEFAULT_ACTIVITY_ANALYSIS_WINDOW = 120  # Minutes to analyze for activity patterns (2 hours)
 
 # Activity scoring thresholds
