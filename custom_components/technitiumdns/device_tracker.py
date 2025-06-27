@@ -263,8 +263,23 @@ class TechnitiumDHCPCoordinator(DataUpdateCoordinator):
             _LOGGER.debug("Final processed DHCP leases: %s", processed_leases)
             _LOGGER.info("DHCP update cycle completed successfully with %d trackable devices", len(processed_leases))
             
-            # Track current devices for cleanup purposes
-            current_macs = {lease.get("mac_address") for lease in processed_leases if lease.get("mac_address")}
+            # Track current devices for cleanup purposes - normalize MAC addresses
+            current_macs = set()
+            for lease in processed_leases:
+                mac = lease.get("mac_address")
+                if mac:
+                    # Normalize MAC format to uppercase with colons for consistent comparison
+                    mac_upper = mac.upper()
+                    if len(mac_upper) == 12:  # No separators: AABBCCDDEEFF
+                        normalized_mac = ':'.join([mac_upper[i:i+2] for i in range(0, 12, 2)])
+                    elif len(mac_upper) == 17:  # With separators: AA-BB-CC-DD-EE-FF or AA:BB:CC:DD:EE:FF
+                        normalized_mac = mac_upper.replace('-', ':')
+                    else:
+                        normalized_mac = mac_upper  # Keep as-is if unexpected format
+                    current_macs.add(normalized_mac)
+                    _LOGGER.debug("Device tracker normalized MAC %s -> %s", mac, normalized_mac)
+            _LOGGER.debug("Device tracker collected %d normalized MAC addresses: %s", 
+                        len(current_macs), sorted(current_macs))
             await self._cleanup_orphaned_entities(current_macs)
             
             return processed_leases
