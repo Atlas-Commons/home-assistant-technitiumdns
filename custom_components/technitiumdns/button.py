@@ -23,6 +23,11 @@ async def async_setup_entry(hass, entry, async_add_entities):
         )
         for duration in sorted_durations
     ]
+    
+    # Add cleanup button for DHCP device management
+    dhcp_enabled = entry.options.get("enable_dhcp_tracking", False)
+    if dhcp_enabled:
+        buttons.append(TechnitiumDNSCleanupButton(server_name, entry.entry_id, hass))
 
     # Add entities
     async_add_entities(buttons)
@@ -53,6 +58,39 @@ class TechnitiumDNSButton(ButtonEntity):
         return DeviceInfo(
             identifiers={(DOMAIN, self._entry_id)},
             name=self._attr_name,
+            manufacturer="Technitium",
+            model="DNS Server",
+        )
+
+class TechnitiumDNSCleanupButton(ButtonEntity):
+    """Button to cleanup orphaned DHCP device entities."""
+
+    def __init__(self, server_name: str, entry_id: str, hass):
+        """Initialize the cleanup button."""
+        self._attr_name = f"Cleanup Devices ({server_name})"
+        self._entry_id = entry_id
+        self._hass = hass
+        self._attr_unique_id = f"{entry_id}_cleanup_devices"
+        self._attr_icon = "mdi:delete-sweep"
+
+    async def async_press(self) -> None:
+        """Handle the button press to cleanup orphaned entities."""
+        try:
+            # Call the cleanup service
+            await self._hass.services.async_call(
+                DOMAIN,
+                "cleanup_devices",
+                {"config_entry_id": self._entry_id}
+            )
+            _LOGGER.info("Manual device cleanup triggered for %s", self._attr_name)
+        except Exception as e:
+            _LOGGER.error("Failed to trigger device cleanup: %s", e)
+
+    @property
+    def device_info(self):
+        """Return device information for this entity."""
+        return DeviceInfo(
+            identifiers={(DOMAIN, self._entry_id)},
             manufacturer="Technitium",
             model="DNS Server",
         )

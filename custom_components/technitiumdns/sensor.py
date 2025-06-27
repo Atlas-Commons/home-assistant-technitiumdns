@@ -1,7 +1,8 @@
-from datetime import timedelta
+from datetime import timedelta, datetime
 import logging
 
 from homeassistant.components.sensor import SensorEntity, SensorDeviceClass
+from homeassistant.util import dt as dt_util
 from homeassistant.helpers.update_coordinator import (
     DataUpdateCoordinator,
     UpdateFailed,
@@ -16,6 +17,32 @@ from .api import TechnitiumDNSApi
 _LOGGER = logging.getLogger(__name__)
 
 SCAN_INTERVAL = timedelta(minutes=1)
+
+def parse_timestamp(timestamp_str):
+    """Parse a timestamp string to a datetime object.
+    
+    TechnitiumDNS API returns timestamps in various formats.
+    Returns None if the timestamp cannot be parsed.
+    """
+    if not timestamp_str:
+        return None
+    
+    try:
+        # Try to parse ISO 8601 format (e.g., "2024-01-15T10:30:00.000Z")
+        if timestamp_str.endswith('Z'):
+            timestamp_str = timestamp_str[:-1] + '+00:00'
+        
+        # Use Home Assistant's dt_util for timezone-aware parsing
+        dt = dt_util.parse_datetime(timestamp_str)
+        if dt:
+            return dt
+            
+        # Fallback: try standard ISO format parsing
+        return datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
+        
+    except (ValueError, TypeError) as e:
+        _LOGGER.warning("Failed to parse timestamp '%s': %s", timestamp_str, e)
+        return None
 
 async def async_setup_entry(hass, entry, async_add_entities):
     """Set up TechnitiumDNS sensors: main DNS statistics and device diagnostic sensors."""
@@ -402,14 +429,17 @@ class TechnitiumDHCPDeviceLeaseObtainedSensor(TechnitiumDHCPDeviceDiagnosticSens
 
     @property
     def native_value(self):
-        """Return the lease obtained time."""
+        """Return the lease obtained time as a datetime object."""
         device_data = self._get_device_data()
-        return device_data.get("lease_obtained") if device_data else None
+        if device_data:
+            timestamp_str = device_data.get("lease_obtained")
+            return parse_timestamp(timestamp_str)
+        return None
 
     @property
     def device_class(self):
         """Return the device class."""
-        return "timestamp"
+        return SensorDeviceClass.TIMESTAMP
 
     @property
     def icon(self):
@@ -437,14 +467,17 @@ class TechnitiumDHCPDeviceLeaseExpiresSensor(TechnitiumDHCPDeviceDiagnosticSenso
 
     @property
     def native_value(self):
-        """Return the lease expires time."""
+        """Return the lease expires time as a datetime object."""
         device_data = self._get_device_data()
-        return device_data.get("lease_expires") if device_data else None
+        if device_data:
+            timestamp_str = device_data.get("lease_expires")
+            return parse_timestamp(timestamp_str)
+        return None
 
     @property
     def device_class(self):
         """Return the device class."""
-        return "timestamp"
+        return SensorDeviceClass.TIMESTAMP
 
     @property
     def icon(self):
@@ -472,14 +505,17 @@ class TechnitiumDHCPDeviceLastSeenSensor(TechnitiumDHCPDeviceDiagnosticSensor):
 
     @property
     def native_value(self):
-        """Return the last seen time."""
+        """Return the last seen time as a datetime object."""
         device_data = self._get_device_data()
-        return device_data.get("last_seen") if device_data else None
+        if device_data:
+            timestamp_str = device_data.get("last_seen")
+            return parse_timestamp(timestamp_str)
+        return None
 
     @property
     def device_class(self):
         """Return the device class."""
-        return "timestamp"
+        return SensorDeviceClass.TIMESTAMP
 
     @property
     def icon(self):

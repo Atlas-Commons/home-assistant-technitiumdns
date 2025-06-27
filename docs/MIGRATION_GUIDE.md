@@ -1,27 +1,24 @@
-"""
-Migration Test for TechnitiumDNS Integration
+# Migration Guide for TechnitiumDNS Integration
 
 This document explains the config entry migration from version 1 to version 2.
-"""
-
-# Migration Logic Overview
 
 ## Version 1 -> Version 2 Changes
 
-### What's New in Version 2:
+### What's New in Version 2
+
 - Added DHCP device tracking functionality
 - New configuration options:
   - `enable_dhcp_tracking` (boolean, default: False)
   - `dhcp_update_interval` (integer, default: 60 seconds)
 
-### Migration Process:
+### Migration Process
 
 1. **Automatic Detection**: Home Assistant detects config entries with version < 2
 2. **Safe Migration**: Adds new options with safe defaults without disrupting existing functionality
 3. **Logging**: Migration process is logged for troubleshooting
 4. **Backward Compatibility**: Existing configurations continue to work unchanged
 
-### Migration Steps:
+### Migration Steps
 
 ```python
 # Before Migration (Version 1)
@@ -54,7 +51,7 @@ config_entry = {
 }
 ```
 
-### Benefits of This Approach:
+### Benefits of This Approach
 
 1. **No User Intervention Required**: Migration happens automatically
 2. **Safe Defaults**: DHCP tracking is disabled by default, so existing installations aren't affected
@@ -62,13 +59,13 @@ config_entry = {
 4. **Rollback Safe**: If needed, older versions can still read the config data
 5. **Logging**: Clear audit trail of what was migrated
 
-### User Experience:
+### User Experience
 
 - **Existing Users**: Integration continues working exactly as before
 - **New Users**: Get the full feature set including DHCP tracking options
 - **Upgrading Users**: Can enable new features through the integration's Configure button
 
-### Error Handling:
+### Error Handling
 
 - Migration failures are logged but don't prevent the integration from loading
 - If migration fails, the integration falls back to safe defaults

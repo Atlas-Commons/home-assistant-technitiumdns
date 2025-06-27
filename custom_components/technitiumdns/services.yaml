@@ -1,0 +1,10 @@
+cleanup_devices:
+  name: Cleanup Orphaned Devices
+  description: Remove device tracker entities and sensors for devices that no longer match IP filter criteria
+  fields:
+    config_entry_id:
+      name: Config Entry ID
+      description: The configuration entry ID (optional - if not provided, will clean all entries)
+      example: "abc123def456"
+      selector:
+        text:

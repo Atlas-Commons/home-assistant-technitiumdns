@@ -34,6 +34,12 @@ from .api import TechnitiumDNSApi
 from .utils import should_track_ip
 from .activity_analyzer import SmartActivityAnalyzer, analyze_batch_device_activity
 
+# Import cleanup functionality
+async def async_cleanup_orphaned_entities(hass, entry_id, current_devices):
+    """Import cleanup function from __init__.py"""
+    from . import async_cleanup_orphaned_entities as cleanup_func
+    return await cleanup_func(hass, entry_id, current_devices)
+
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -128,6 +134,23 @@ class TechnitiumDHCPCoordinator(DataUpdateCoordinator):
         _LOGGER.debug("Setting coordinator update interval to %s", scan_interval)
         super().__init__(hass, _LOGGER, name=f"{DOMAIN}_dhcp", update_interval=scan_interval)
         _LOGGER.info("TechnitiumDHCPCoordinator initialized successfully")
+
+    async def _cleanup_orphaned_entities(self, current_macs: set):
+        """Clean up entities for devices that no longer match current criteria."""
+        try:
+            # Get config entry ID from hass data
+            entry_id = None
+            for eid, data in self.hass.data.get(DOMAIN, {}).items():
+                if data.get("coordinators", {}).get("dhcp") == self:
+                    entry_id = eid
+                    break
+            
+            if entry_id:
+                await async_cleanup_orphaned_entities(self.hass, entry_id, current_macs)
+            else:
+                _LOGGER.warning("Could not find config entry ID for entity cleanup")
+        except Exception as e:
+            _LOGGER.error("Error during entity cleanup: %s", e, exc_info=True)
 
     async def _async_update_data(self):
         """Update data via library."""
@@ -239,6 +262,11 @@ class TechnitiumDHCPCoordinator(DataUpdateCoordinator):
             
             _LOGGER.debug("Final processed DHCP leases: %s", processed_leases)
             _LOGGER.info("DHCP update cycle completed successfully with %d trackable devices", len(processed_leases))
+            
+            # Track current devices for cleanup purposes
+            current_macs = {lease.get("mac_address") for lease in processed_leases if lease.get("mac_address")}
+            await self._cleanup_orphaned_entities(current_macs)
+            
             return processed_leases
             
         except Exception as err:

@@ -29,7 +29,7 @@ This implementation adds DHCP device tracking functionality to the TechnitiumDNS
 ### 4. Integration Updates
 - Updated `__init__.py` to conditionally load device_tracker platform
 - Added options update listener for dynamic configuration changes
-- Updated manifest version to 2.4.0
+- Updated manifest version to 2.5.2
 - Enhanced error handling and logging
 - **Added config entry migration from version 1 to 2**
 - **Bumped config flow version to handle new options safely**
@@ -100,8 +100,8 @@ Returns list of all DHCP leases with status information.
         "hardwareAddress": "AA:BB:CC:DD:EE:FF",
         "hostName": "device-name",
         "clientIdentifier": "client-id",
-        "leaseExpires": "2024-01-01T12:00:00Z",
-        "leaseObtained": "2024-01-01T11:00:00Z",
+        "leaseExpires": "2025-06-27T12:00:00Z",
+        "leaseObtained": "2025-06-27T11:00:00Z",
         "scope": "192.168.1.0/24"
       }
     ]
@@ -155,7 +155,7 @@ Returns list of all DHCP leases with status information.
 - `api.py` - Added DHCP API methods
 - `config_flow.py` - Added options flow for DHCP settings
 - `const.py` - Added DHCP-related constants
-- `manifest.json` - Version bump to 2.4.0
+- `manifest.json` - Version bump to 2.5.2
 - `strings.json` - Added options flow strings
 - `translations/en.json` - Added English translations
 - `translations/de.json` - Added German translations

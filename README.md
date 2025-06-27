@@ -165,6 +165,44 @@ After setting up the integration, you can configure additional options by going 
 172.16.1.1-172.16.1.5
 ```
 
+## Entity Management
+
+### Automatic Cleanup
+When you change IP filtering settings, the integration automatically removes device tracker entities and their associated diagnostic sensors for devices that no longer match the filter criteria. This happens during the next data update cycle.
+
+### Manual Cleanup
+If you need to manually clean up orphaned entities:
+
+1. **Using the Cleanup Button**: Go to your TechnitiumDNS device page and click the "Cleanup Devices" button.
+
+2. **Using the Service**: Call the `technitiumdnsdhcp.cleanup_devices` service:
+   ```yaml
+   service: technitiumdnsdhcp.cleanup_devices
+   data:
+     config_entry_id: "your_entry_id"  # Optional - if omitted, cleans all entries
+   ```
+
+3. **Using Developer Tools**: Go to Developer Tools > Services and search for "Cleanup Devices".
+
+### What Gets Cleaned Up
+- Device tracker entities for devices no longer matching IP filters
+- All diagnostic sensors associated with removed devices
+- Device registry entries for devices with no remaining entities
+- Orphaned entity registry entries
+
+**Note**: Only entities belonging to this integration are affected. Other integrations and their entities remain untouched.
+
+## 📚 Documentation
+
+For detailed documentation, troubleshooting guides, and implementation details, see the [docs/](docs/) directory:
+
+- **[Implementation Guides](docs/INDEX.md#implementation-guides)** - DHCP implementation, entity cleanup, and technical summaries
+- **[Feature Documentation](docs/INDEX.md#feature-documentation)** - Smart Activity Analysis and diagnostic sensors
+- **[Testing & Troubleshooting](docs/INDEX.md#testing--troubleshooting)** - Comprehensive guides for issue resolution
+- **[Migration Guides](docs/INDEX.md#migration--updates)** - Upgrading from older versions
+
+Visit [docs/INDEX.md](docs/INDEX.md) for a complete documentation index.
+
 ## Contributing
 
 If you want to contribute to this project, feel free to fork the repository and submit a pull request. Issues and feature requests are also welcome.
