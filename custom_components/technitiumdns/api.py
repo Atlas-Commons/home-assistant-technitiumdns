@@ -162,7 +162,7 @@ class TechnitiumDNSApi:
                     async with session.get(url, params=params) as response:
                         response.raise_for_status()
                         data = await response.json()
-                        _LOGGER.debug("Response: %s", data)
+                        # _LOGGER.debug("Response: %s", data)
                         if data.get("status") != "ok":
                             raise Exception(f"Error setting ad blocking: {data.get('errorMessage')}")
                         return data
@@ -180,7 +180,7 @@ class TechnitiumDNSApi:
         """Get DHCP leases from the API."""
         _LOGGER.debug("Calling DHCP leases API endpoint: api/dhcp/leases/list")
         result = await self.fetch_data("api/dhcp/leases/list")
-        _LOGGER.debug("DHCP leases API response: %s", result)
+        # _LOGGER.debug("DHCP leases API response: %s", result)
         if result:
             _LOGGER.debug("Response keys: %s", list(result.keys()) if isinstance(result, dict) else "Not a dict")
             if isinstance(result, dict) and "response" in result:
