@@ -46,6 +46,7 @@ The TechnitiumDNS Home Assistant integration provides comprehensive DNS server m
 - **Features**:
   - Automatic cleanup of orphaned entities when IP filtering changes
   - Manual cleanup service: `technitiumdnsdhcp.cleanup_devices`
+  - DHCP data retrieval service: `technitiumdnsdhcp.get_dhcp_leases`
   - Safe removal that only affects integration entities
   - Comprehensive logging of cleanup actions
 

@@ -100,6 +100,71 @@ async def async_register_services(hass: HomeAssistant):
                     await async_cleanup_orphaned_entities(hass, entry_id, current_macs)
                     _LOGGER.info("Manual cleanup completed for entry %s", entry_id)
     
+    async def handle_get_dhcp_leases(call):
+        """Handle get_dhcp_leases service call."""
+        config_entry_id = call.data.get("config_entry_id")
+        include_inactive = call.data.get("include_inactive", False)
+        filter_scope = call.data.get("filter_scope")
+        
+        # Find the appropriate config entry
+        target_entry_id = config_entry_id
+        if not target_entry_id:
+            # Use the first available entry if none specified
+            domain_data = hass.data.get(DOMAIN, {})
+            if domain_data:
+                target_entry_id = next(iter(domain_data.keys()))
+        
+        if not target_entry_id:
+            _LOGGER.error("No TechnitiumDNS config entries found")
+            return
+            
+        entry_data = hass.data.get(DOMAIN, {}).get(target_entry_id)
+        if not entry_data:
+            _LOGGER.error("Config entry %s not found", target_entry_id)
+            return
+            
+        # Get the API instance
+        api = entry_data.get("api")
+        if not api:
+            _LOGGER.error("No API instance found for entry %s", target_entry_id)
+            return
+            
+        try:
+            # Fetch DHCP leases
+            leases_data = await api.get_dhcp_leases()
+            if not leases_data or "leases" not in leases_data:
+                _LOGGER.warning("No DHCP leases data returned")
+                return
+                
+            leases = leases_data["leases"]
+            
+            # Filter leases if requested
+            if not include_inactive:
+                leases = [lease for lease in leases if lease.get("addressStatus") == "InUse"]
+                
+            if filter_scope:
+                leases = [lease for lease in leases if lease.get("scope") == filter_scope]
+            
+            # Fire event with the lease data
+            hass.bus.async_fire(
+                f"{DOMAIN}_dhcp_leases_retrieved",
+                {
+                    "config_entry_id": target_entry_id,
+                    "total_leases": len(leases),
+                    "leases": leases,
+                    "include_inactive": include_inactive,
+                    "filter_scope": filter_scope,
+                }
+            )
+            
+            _LOGGER.info(
+                "Retrieved %d DHCP leases for entry %s (include_inactive=%s, filter_scope=%s)",
+                len(leases), target_entry_id, include_inactive, filter_scope
+            )
+            
+        except Exception as e:
+            _LOGGER.error("Failed to retrieve DHCP leases: %s", e)
+
     hass.services.async_register(
         DOMAIN,
         "cleanup_devices", 
@@ -109,6 +174,18 @@ async def async_register_services(hass: HomeAssistant):
         })
     )
     _LOGGER.info("Registered cleanup_devices service")
+    
+    hass.services.async_register(
+        DOMAIN,
+        "get_dhcp_leases",
+        handle_get_dhcp_leases,
+        schema=vol.Schema({
+            vol.Optional("config_entry_id"): cv.string,
+            vol.Optional("include_inactive", default=False): cv.boolean,
+            vol.Optional("filter_scope"): cv.string,
+        })
+    )
+    _LOGGER.info("Registered get_dhcp_leases service")
 
 async def async_update_options(hass: HomeAssistant, entry: ConfigEntry) -> None:
     """Handle options update."""

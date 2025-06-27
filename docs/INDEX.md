@@ -11,6 +11,7 @@ This directory contains detailed documentation for the TechnitiumDNS Home Assist
 
 ### Feature Documentation
 - **[SMART_ACTIVITY_SOLUTION.md](SMART_ACTIVITY_SOLUTION.md)** - Smart Activity Analysis system for accurate device tracking
+- **[SERVICE_IMPLEMENTATION.md](SERVICE_IMPLEMENTATION.md)** - Available Home Assistant services and API access
 
 ### Migration & Updates
 - **[MIGRATION_GUIDE.md](MIGRATION_GUIDE.md)** - Guide for migrating from older versions

@@ -94,6 +94,50 @@ Cleanup happens automatically when:
      config_entry_id: "your_entry_id"  # Optional
    ```
 
+## Available Services
+
+### Cleanup Devices Service
+- **Service**: `technitiumdnsdhcp.cleanup_devices`
+- **Purpose**: Remove orphaned device tracker entities and sensors
+- **Parameters**:
+  - `config_entry_id` (optional): Target specific integration entry
+
+### Get DHCP Leases Service
+- **Service**: `technitiumdnsdhcp.get_dhcp_leases`
+- **Purpose**: Retrieve all DHCP leases for automation and monitoring
+- **Parameters**:
+  - `config_entry_id` (optional): Target specific integration entry
+  - `include_inactive` (default: false): Include expired/inactive leases
+  - `filter_scope` (optional): Filter by specific DHCP scope (e.g., "192.168.1.0/24")
+- **Returns**: Fires event `technitiumdnsdhcp_dhcp_leases_retrieved` with lease data
+
+#### Example Usage:
+```yaml
+# Get all active leases
+service: technitiumdnsdhcp.get_dhcp_leases
+
+# Get all leases including inactive ones
+service: technitiumdnsdhcp.get_dhcp_leases
+data:
+  include_inactive: true
+
+# Get leases from specific scope
+service: technitiumdnsdhcp.get_dhcp_leases
+data:
+  filter_scope: "192.168.1.0/24"
+```
+
+The service fires an event that can be listened to in automations:
+```yaml
+trigger:
+  - platform: event
+    event_type: technitiumdnsdhcp_dhcp_leases_retrieved
+action:
+  - service: notify.persistent_notification
+    data:
+      message: "Retrieved {{ trigger.event.data.total_leases }} DHCP leases"
+```
+
 ## What Gets Cleaned Up
 
 ### Removed Entities
