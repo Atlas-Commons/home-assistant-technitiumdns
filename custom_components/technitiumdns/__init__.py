@@ -30,6 +30,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if dhcp_enabled:
         platforms.append("device_tracker")
         _LOGGER.info("Added device_tracker platform to load list")
+        
     
     # Always add sensor platform last so it can access other coordinators
     platforms.append("sensor")

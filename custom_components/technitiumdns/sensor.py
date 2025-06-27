@@ -854,22 +854,41 @@ class DynamicSensorManager:
         if self.dhcp_coordinator.data:
             for lease in self.dhcp_coordinator.data:
                 mac_address = lease.get("mac_address", "")
+                _LOGGER.debug("Dynamic sensor manager - lease.get.mac_address: %s", mac_address)
                 if mac_address:
                     normalized_mac = normalize_mac_address(mac_address)
                     self.known_devices.add(normalized_mac)
                     _LOGGER.debug("Added known device: %s", normalized_mac)
         
         # Set up listener for coordinator updates
-        self._listener = self.dhcp_coordinator.async_add_listener(self._handle_coordinator_update)
+        _LOGGER.debug("Setting up coordinator listener, coordinator type: %s", type(self.dhcp_coordinator))
+        _LOGGER.debug("Available coordinator methods: %s", [m for m in dir(self.dhcp_coordinator) if 'listener' in m.lower()])
+        
+        if hasattr(self.dhcp_coordinator, 'async_add_listener'):
+            self._listener = self.dhcp_coordinator.async_add_listener(self._handle_coordinator_update)
+            _LOGGER.debug("Successfully added coordinator listener")
+        else:
+            _LOGGER.error("DHCP coordinator does not have async_add_listener method!")
+            _LOGGER.error("Coordinator class: %s", type(self.dhcp_coordinator))
+            _LOGGER.error("Available methods: %s", dir(self.dhcp_coordinator))
+            # Fall back to manual triggering
+            self._listener = None
         _LOGGER.info("Dynamic sensor manager setup complete, tracking %d known devices", len(self.known_devices))
         
         # If we don't know any devices yet but coordinator has data, treat all as new
         if not self.known_devices and self.dhcp_coordinator.data:
             _LOGGER.info("Dynamic sensor manager: No known devices, treating all %d devices as new", len(self.dhcp_coordinator.data))
             await self._handle_coordinator_update()
+        
+        # Also force a manual check regardless of listener setup
+        if self._listener is None:
+            _LOGGER.warning("No coordinator listener available, will rely on manual triggering only")
+            # Force an immediate update to create any missing sensors
+            await self._handle_coordinator_update()
     
     async def _handle_coordinator_update(self):
         """Handle coordinator data updates and create sensors for new devices."""
+        _LOGGER.debug("Dynamic sensor manager: _handle_coordinator_update called")
         if not self.dhcp_coordinator.data:
             _LOGGER.debug("Dynamic sensor manager: No coordinator data available")
             return
