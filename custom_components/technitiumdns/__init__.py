@@ -52,10 +52,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Forward the setup to the appropriate platforms in order
     _LOGGER.info("Starting platform setup for: %s", platforms)
     
-    # Set up platforms sequentially to ensure proper coordinator sharing
-    for platform in platforms:
-        await hass.config_entries.async_forward_entry_setup(entry, platform)
-        _LOGGER.debug("Platform %s setup completed", platform)
+    # Set up all platforms (order is preserved: device_tracker before sensor)
+    await hass.config_entries.async_forward_entry_setups(entry, platforms)
     
     _LOGGER.info("All platforms setup completed successfully")
     
