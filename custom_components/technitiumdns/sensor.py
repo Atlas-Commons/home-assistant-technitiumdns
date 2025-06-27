@@ -444,7 +444,8 @@ class TechnitiumDHCPDeviceIPSensor(TechnitiumDHCPDeviceDiagnosticSensor):
     @property
     def name(self):
         """Return the name of the sensor."""
-        return f"{self._device_name} IP Address"
+        return f"IP Address"
+        # return f"{self._device_name} IP Address"
 
     @property
     def unique_id(self):
@@ -474,7 +475,8 @@ class TechnitiumDHCPDeviceMaCSensor(TechnitiumDHCPDeviceDiagnosticSensor):
     @property
     def name(self):
         """Return the name of the sensor."""
-        return f"{self._device_name} MAC Address"
+        return f"MAC Address"
+        # return f"{self._device_name} MAC Address"
 
     @property
     def unique_id(self):
@@ -504,7 +506,8 @@ class TechnitiumDHCPDeviceHostnameSensor(TechnitiumDHCPDeviceDiagnosticSensor):
     @property
     def name(self):
         """Return the name of the sensor."""
-        return f"{self._device_name} Hostname"
+        return f"Hostname"
+        # return f"{self._device_name} Hostname"
 
     @property
     def unique_id(self):
@@ -535,7 +538,8 @@ class TechnitiumDHCPDeviceLeaseObtainedSensor(TechnitiumDHCPDeviceDiagnosticSens
     @property
     def name(self):
         """Return the name of the sensor."""
-        return f"{self._device_name} Lease Obtained"
+        return f"Lease Obtained"
+        # return f"{self._device_name} Lease Obtained"
 
     @property
     def unique_id(self):
@@ -573,7 +577,8 @@ class TechnitiumDHCPDeviceLeaseExpiresSensor(TechnitiumDHCPDeviceDiagnosticSenso
     @property
     def name(self):
         """Return the name of the sensor."""
-        return f"{self._device_name} Lease Expires"
+        return f"Lease Expires"
+        # return f"{self._device_name} Lease Expires"
 
     @property
     def unique_id(self):
@@ -611,7 +616,8 @@ class TechnitiumDHCPDeviceLastSeenSensor(TechnitiumDHCPDeviceDiagnosticSensor):
     @property
     def name(self):
         """Return the name of the sensor."""
-        return f"{self._device_name} Last Seen"
+        return f"Last Seen"
+        # return f"{self._device_name} Last Seen"
 
     @property
     def unique_id(self):
@@ -649,7 +655,8 @@ class TechnitiumDHCPDeviceIsStaleSensor(TechnitiumDHCPDeviceDiagnosticSensor):
     @property
     def name(self):
         """Return the name of the sensor."""
-        return f"{self._device_name} Is Stale"
+        return f"Is Stale"
+        # return f"{self._device_name} Is Stale"
 
     @property
     def unique_id(self):
@@ -684,7 +691,8 @@ class TechnitiumDHCPDeviceMinutesSinceSeenSensor(TechnitiumDHCPDeviceDiagnosticS
     @property
     def name(self):
         """Return the name of the sensor."""
-        return f"{self._device_name} Minutes Since Seen"
+        return f"Minutes Since Seen"
+        # return f"{self._device_name} Minutes Since Seen"
 
     @property
     def unique_id(self):
@@ -719,7 +727,8 @@ class TechnitiumDHCPDeviceActivityScoreSensor(TechnitiumDHCPDeviceDiagnosticSens
     @property
     def name(self):
         """Return the name of the sensor."""
-        return f"{self._device_name} Activity Score"
+        return f"Activity Score"
+        # return f"{self._device_name} Activity Score"
 
     @property
     def unique_id(self):
@@ -784,7 +793,8 @@ class TechnitiumDHCPDeviceIsActivelyUsedSensor(TechnitiumDHCPDeviceDiagnosticSen
     @property
     def name(self):
         """Return the name of the sensor."""
-        return f"{self._device_name} Is Actively Used"
+        return f"Is Actively Used"
+        # return f"{self._device_name} Is Actively Used"
 
     @property
     def unique_id(self):
@@ -819,7 +829,8 @@ class TechnitiumDHCPDeviceActivitySummarySensor(TechnitiumDHCPDeviceDiagnosticSe
     @property
     def name(self):
         """Return the name of the sensor."""
-        return f"{self._device_name} Activity Summary"
+        return f"Activity Summary"
+        # return f"{self._device_name} Activity Summary"
 
     @property
     def unique_id(self):
