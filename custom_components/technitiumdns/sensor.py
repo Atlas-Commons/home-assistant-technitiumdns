@@ -71,8 +71,8 @@ async def async_setup_entry(hass, entry, async_add_entities):
             dhcp_coordinator = coordinators["dhcp"]
             _LOGGER.info("DHCP coordinator found, creating device diagnostic sensors")
             
-            # Always try to create sensors, even if no data is available yet
-            # This ensures sensors are available when data becomes available
+            # Try to create sensors from current coordinator data
+            device_sensors_created = False
             if dhcp_coordinator.data:
                 _LOGGER.info("DHCP coordinator has %d devices, creating diagnostic sensors", len(dhcp_coordinator.data))
                 for lease in dhcp_coordinator.data:
@@ -107,9 +107,57 @@ async def async_setup_entry(hass, entry, async_add_entities):
                     sensors.extend(diagnostic_sensors)
                     _LOGGER.info("Created %d diagnostic sensors for device %s", len(diagnostic_sensors), device_name)
                 
+                device_sensors_created = True
                 _LOGGER.info("Created %d total device diagnostic sensors for %d devices", len(sensors) - len(SENSOR_TYPES), len(dhcp_coordinator.data))
-            else:
-                _LOGGER.warning("DHCP coordinator has no data yet, diagnostic sensors will be created when data becomes available")
+            
+            # If no devices in coordinator data yet, try to find existing device tracker entities
+            # and create sensors for them
+            if not device_sensors_created:
+                _LOGGER.warning("DHCP coordinator has no data yet, attempting to find existing device trackers")
+                
+                # Import here to avoid circular imports
+                from homeassistant.helpers import entity_registry as er
+                
+                entity_registry = er.async_get(hass)
+                existing_device_trackers = [
+                    entity for entity in entity_registry.entities.values()
+                    if entity.platform == DOMAIN and entity.domain == "device_tracker"
+                    and entity.config_entry_id == entry.entry_id
+                ]
+                
+                if existing_device_trackers:
+                    _LOGGER.info("Found %d existing device tracker entities, creating sensors for them", len(existing_device_trackers))
+                    for device_tracker_entity in existing_device_trackers:
+                        # Extract MAC address from unique_id or entity_id
+                        unique_id = device_tracker_entity.unique_id
+                        if unique_id and "dhcp_device_" in unique_id:
+                            mac_clean = unique_id.replace("dhcp_device_", "")
+                            # Convert back to MAC format with colons
+                            mac_address = ":".join([mac_clean[i:i+2] for i in range(0, 12, 2)]).upper()
+                            device_name = device_tracker_entity.name or f"Device_{mac_clean[-6:]}"
+                            
+                            _LOGGER.info("Creating diagnostic sensors for existing device: %s (MAC: %s)", device_name, mac_address)
+                            
+                            diagnostic_sensors = [
+                                TechnitiumDHCPDeviceIPSensor(dhcp_coordinator, mac_address, server_name, entry.entry_id, device_name),
+                                TechnitiumDHCPDeviceMaCSensor(dhcp_coordinator, mac_address, server_name, entry.entry_id, device_name),
+                                TechnitiumDHCPDeviceHostnameSensor(dhcp_coordinator, mac_address, server_name, entry.entry_id, device_name),
+                                TechnitiumDHCPDeviceLeaseObtainedSensor(dhcp_coordinator, mac_address, server_name, entry.entry_id, device_name),
+                                TechnitiumDHCPDeviceLeaseExpiresSensor(dhcp_coordinator, mac_address, server_name, entry.entry_id, device_name),
+                                TechnitiumDHCPDeviceLastSeenSensor(dhcp_coordinator, mac_address, server_name, entry.entry_id, device_name),
+                                TechnitiumDHCPDeviceIsStaleSensor(dhcp_coordinator, mac_address, server_name, entry.entry_id, device_name),
+                                TechnitiumDHCPDeviceMinutesSinceSeenSensor(dhcp_coordinator, mac_address, server_name, entry.entry_id, device_name),
+                                TechnitiumDHCPDeviceActivityScoreSensor(dhcp_coordinator, mac_address, server_name, entry.entry_id, device_name),
+                                TechnitiumDHCPDeviceIsActivelyUsedSensor(dhcp_coordinator, mac_address, server_name, entry.entry_id, device_name),
+                                TechnitiumDHCPDeviceActivitySummarySensor(dhcp_coordinator, mac_address, server_name, entry.entry_id, device_name),
+                            ]
+                            
+                            sensors.extend(diagnostic_sensors)
+                            _LOGGER.info("Created %d diagnostic sensors for existing device %s", len(diagnostic_sensors), device_name)
+                    
+                    _LOGGER.info("Created %d total device diagnostic sensors for %d existing devices", len(sensors) - len(SENSOR_TYPES), len(existing_device_trackers))
+                else:
+                    _LOGGER.warning("No existing device trackers found, diagnostic sensors will be created when devices are discovered")
         else:
             _LOGGER.info("DHCP coordinator not available yet, only creating main DNS sensors")
         
@@ -117,9 +165,29 @@ async def async_setup_entry(hass, entry, async_add_entities):
         async_add_entities(sensors, True)
         _LOGGER.info("All sensors registered successfully with Home Assistant")
         
+        # Set up dynamic sensor creation if DHCP coordinator is available
+        if dhcp_coordinator:
+            _LOGGER.info("Setting up dynamic sensor creation for new DHCP devices")
+            sensor_manager = DynamicSensorManager(hass, entry, async_add_entities, dhcp_coordinator, server_name)
+            await sensor_manager.setup()
+            
+            # Store sensor manager for cleanup
+            if "sensor_manager" not in hass.data[DOMAIN][entry.entry_id]:
+                hass.data[DOMAIN][entry.entry_id]["sensor_manager"] = sensor_manager
+        
     except Exception as e:
         _LOGGER.error("Could not initialize TechnitiumDNS sensor platform: %s", e, exc_info=True)
         raise ConfigEntryNotReady from e
+
+async def async_unload_entry(hass, entry):
+    """Unload sensor platform and clean up dynamic sensor manager."""
+    # Clean up dynamic sensor manager if it exists
+    sensor_manager = hass.data[DOMAIN][entry.entry_id].get("sensor_manager")
+    if sensor_manager:
+        sensor_manager.cleanup()
+        _LOGGER.info("Dynamic sensor manager cleaned up for entry %s", entry.entry_id)
+    
+    return True
 
 class TechnitiumDNSCoordinator(DataUpdateCoordinator):
     """Class to manage fetching TechnitiumDNS data."""
@@ -748,3 +816,118 @@ class TechnitiumDHCPDeviceActivitySummarySensor(TechnitiumDHCPDeviceDiagnosticSe
     def icon(self):
         """Return the icon for this sensor."""
         return "mdi:text-box-outline"
+
+
+class DynamicSensorManager:
+    """Manager for creating sensors dynamically when new devices are discovered."""
+    
+    def __init__(self, hass, entry, async_add_entities, dhcp_coordinator, server_name):
+        """Initialize the dynamic sensor manager."""
+        self.hass = hass
+        self.entry = entry
+        self.async_add_entities = async_add_entities
+        self.dhcp_coordinator = dhcp_coordinator
+        self.server_name = server_name
+        self.known_devices = set()  # Track devices we've already created sensors for
+        self._listener = None
+        
+        _LOGGER.debug("Dynamic sensor manager initialized for entry %s", entry.entry_id)
+    
+    async def setup(self):
+        """Set up the dynamic sensor manager."""
+        # Track currently known devices
+        if self.dhcp_coordinator.data:
+            for lease in self.dhcp_coordinator.data:
+                mac_address = lease.get("mac_address", "")
+                if mac_address:
+                    normalized_mac = normalize_mac_address(mac_address)
+                    self.known_devices.add(normalized_mac)
+                    _LOGGER.debug("Added known device: %s", normalized_mac)
+        
+        # Set up listener for coordinator updates
+        self._listener = self.dhcp_coordinator.async_add_listener(self._handle_coordinator_update)
+        _LOGGER.info("Dynamic sensor manager setup complete, tracking %d known devices", len(self.known_devices))
+    
+    async def _handle_coordinator_update(self):
+        """Handle coordinator data updates and create sensors for new devices."""
+        if not self.dhcp_coordinator.data:
+            return
+        
+        current_devices = set()
+        new_devices = []
+        
+        for lease in self.dhcp_coordinator.data:
+            mac_address = lease.get("mac_address", "")
+            if not mac_address:
+                continue
+                
+            normalized_mac = normalize_mac_address(mac_address)
+            current_devices.add(normalized_mac)
+            
+            # Check if this is a new device
+            if normalized_mac not in self.known_devices:
+                new_devices.append(lease)
+                self.known_devices.add(normalized_mac)
+                _LOGGER.info("Discovered new device: %s", normalized_mac)
+        
+        # Track removed devices (for future cleanup)
+        removed_devices = self.known_devices - current_devices
+        if removed_devices:
+            _LOGGER.info("Detected %d removed devices: %s", len(removed_devices), removed_devices)
+            # Note: Actual sensor removal would need entity registry integration
+            # For now, we just log this information
+        
+        # Update known devices to current state
+        self.known_devices = current_devices.copy()
+        
+        # Create sensors for new devices
+        if new_devices:
+            await self._create_sensors_for_devices(new_devices)
+    
+    async def _create_sensors_for_devices(self, devices):
+        """Create diagnostic sensors for a list of new devices."""
+        new_sensors = []
+        
+        for lease in devices:
+            mac_address = lease.get("mac_address", "")
+            hostname = lease.get("hostname", "")
+            ip_address = lease.get("ip_address", "")
+            
+            # Create a device name consistent with device tracker
+            if hostname:
+                device_name = hostname
+            elif mac_address:
+                device_name = f"Device_{mac_address.replace(':', '')[-6:]}"
+            else:
+                device_name = f"Unknown_Device_{ip_address}"
+            
+            _LOGGER.info("Creating diagnostic sensors for new device: %s (MAC: %s, IP: %s)", 
+                        device_name, mac_address, ip_address)
+            
+            diagnostic_sensors = [
+                TechnitiumDHCPDeviceIPSensor(self.dhcp_coordinator, mac_address, self.server_name, self.entry.entry_id, device_name),
+                TechnitiumDHCPDeviceMaCSensor(self.dhcp_coordinator, mac_address, self.server_name, self.entry.entry_id, device_name),
+                TechnitiumDHCPDeviceHostnameSensor(self.dhcp_coordinator, mac_address, self.server_name, self.entry.entry_id, device_name),
+                TechnitiumDHCPDeviceLeaseObtainedSensor(self.dhcp_coordinator, mac_address, self.server_name, self.entry.entry_id, device_name),
+                TechnitiumDHCPDeviceLeaseExpiresSensor(self.dhcp_coordinator, mac_address, self.server_name, self.entry.entry_id, device_name),
+                TechnitiumDHCPDeviceLastSeenSensor(self.dhcp_coordinator, mac_address, self.server_name, self.entry.entry_id, device_name),
+                TechnitiumDHCPDeviceIsStaleSensor(self.dhcp_coordinator, mac_address, self.server_name, self.entry.entry_id, device_name),
+                TechnitiumDHCPDeviceMinutesSinceSeenSensor(self.dhcp_coordinator, mac_address, self.server_name, self.entry.entry_id, device_name),
+                TechnitiumDHCPDeviceActivityScoreSensor(self.dhcp_coordinator, mac_address, self.server_name, self.entry.entry_id, device_name),
+                TechnitiumDHCPDeviceIsActivelyUsedSensor(self.dhcp_coordinator, mac_address, self.server_name, self.entry.entry_id, device_name),
+                TechnitiumDHCPDeviceActivitySummarySensor(self.dhcp_coordinator, mac_address, self.server_name, self.entry.entry_id, device_name),
+            ]
+            
+            new_sensors.extend(diagnostic_sensors)
+            _LOGGER.info("Created %d diagnostic sensors for new device %s", len(diagnostic_sensors), device_name)
+        
+        if new_sensors:
+            _LOGGER.info("Adding %d new sensors to Home Assistant", len(new_sensors))
+            self.async_add_entities(new_sensors, True)
+    
+    def cleanup(self):
+        """Clean up the sensor manager."""
+        if self._listener:
+            self._listener()
+            self._listener = None
+        _LOGGER.debug("Dynamic sensor manager cleaned up")
