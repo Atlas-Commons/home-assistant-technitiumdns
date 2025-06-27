@@ -289,7 +289,8 @@ class TechnitiumDHCPCoordinator(DataUpdateCoordinator):
                 _LOGGER.info("Performing smart activity analysis for %d devices", len(ip_addresses))
                 
                 # Get comprehensive DNS logs for activity analysis
-                analysis_window_hours = max(1, self.activity_analyzer.analysis_window_minutes / 60)
+                # Use a longer window to capture more activity (at least 4 hours)
+                analysis_window_hours = max(4, self.activity_analyzer.analysis_window_minutes / 60)
                 dns_logs = await self.api.get_dns_logs_for_analysis(hours_back=analysis_window_hours)
                 
                 if dns_logs:

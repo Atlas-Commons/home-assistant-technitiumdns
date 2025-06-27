@@ -121,7 +121,10 @@ class SmartActivityAnalyzer:
     
     def _filter_device_logs(self, dns_logs: List[Dict], ip_address: str) -> List[Dict]:
         """Filter DNS logs for a specific device within the analysis window."""
-        cutoff_time = datetime.now() - timedelta(minutes=self.analysis_window_minutes)
+        from datetime import timezone
+        
+        # Use UTC time for consistent comparison with log timestamps
+        cutoff_time = datetime.now(timezone.utc) - timedelta(minutes=self.analysis_window_minutes)
         
         # Debug: Log the first few entries to understand structure
         if ip_address == "192.168.1.200" and dns_logs:
@@ -149,8 +152,17 @@ class SmartActivityAnalyzer:
                 log_time_str = log.get('timestamp') or log.get('time') or log.get('dateTime')
                 if log_time_str:
                     try:
-                        log_time = datetime.fromisoformat(log_time_str.replace('Z', '+00:00'))
-                        if log_time.replace(tzinfo=None) >= cutoff_time:
+                        # Parse timestamp with proper timezone handling
+                        if log_time_str.endswith('Z'):
+                            log_time = datetime.fromisoformat(log_time_str.replace('Z', '+00:00'))
+                        else:
+                            log_time = datetime.fromisoformat(log_time_str)
+                            
+                        # Ensure we're comparing in UTC
+                        if log_time.tzinfo is None:
+                            log_time = log_time.replace(tzinfo=timezone.utc)
+                        
+                        if log_time >= cutoff_time:
                             device_logs.append(log)
                             time_matches += 1
                     except (ValueError, AttributeError) as e:
@@ -161,6 +173,16 @@ class SmartActivityAnalyzer:
         if ip_address == "192.168.1.200":
             _LOGGER.debug("Filter results for %s: total_logs=%d, ip_matches=%d, time_matches=%d, final_logs=%d", 
                          ip_address, total_checked, ip_matches, time_matches, len(device_logs))
+            _LOGGER.debug("Analysis cutoff time (UTC): %s, analysis window: %d minutes", 
+                         cutoff_time.isoformat(), self.analysis_window_minutes)
+            
+            # Show sample of time-filtered logs for debugging
+            if device_logs:
+                _LOGGER.debug("Sample device logs found for %s:", ip_address)
+                for i, log in enumerate(device_logs[:3]):
+                    _LOGGER.debug("  Log %d: %s -> %s", i, log.get('timestamp'), log.get('qname'))
+                    
+        return device_logs
                     
         return device_logs
     
@@ -253,13 +275,20 @@ class SmartActivityAnalyzer:
         if len(device_logs) < 3:
             return 50  # Not enough data for timing analysis
             
+        from datetime import timezone
+        
         # Parse timestamps and calculate intervals
         timestamps = []
         for log in device_logs:
             time_str = log.get('timestamp')
             if time_str:
                 try:
-                    timestamp = datetime.fromisoformat(time_str.replace('Z', '+00:00'))
+                    if time_str.endswith('Z'):
+                        timestamp = datetime.fromisoformat(time_str.replace('Z', '+00:00'))
+                    else:
+                        timestamp = datetime.fromisoformat(time_str)
+                        if timestamp.tzinfo is None:
+                            timestamp = timestamp.replace(tzinfo=timezone.utc)
                     timestamps.append(timestamp)
                 except (ValueError, AttributeError):
                     continue
@@ -339,12 +368,19 @@ class SmartActivityAnalyzer:
     
     def _get_time_span_minutes(self, device_logs: List[Dict]) -> float:
         """Get time span of logs in minutes."""
+        from datetime import timezone
+        
         timestamps = []
         for log in device_logs:
             time_str = log.get('timestamp')
             if time_str:
                 try:
-                    timestamp = datetime.fromisoformat(time_str.replace('Z', '+00:00'))
+                    if time_str.endswith('Z'):
+                        timestamp = datetime.fromisoformat(time_str.replace('Z', '+00:00'))
+                    else:
+                        timestamp = datetime.fromisoformat(time_str)
+                        if timestamp.tzinfo is None:
+                            timestamp = timestamp.replace(tzinfo=timezone.utc)
                     timestamps.append(timestamp)
                 except (ValueError, AttributeError):
                     continue
