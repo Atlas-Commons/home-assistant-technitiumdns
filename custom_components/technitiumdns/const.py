@@ -87,9 +87,9 @@ DEFAULT_ACTIVITY_ANALYSIS_WINDOW = 120  # Minutes to analyze for activity patter
 # Activity scoring thresholds
 ACTIVITY_SCORE_THRESHOLDS = {
     10: "Very Low (mostly background)",
-    25: "Low (some user activity)", 
-    50: "Medium (regular usage)",
-    75: "High (active usage)",
+    33: "Low (some user activity)", 
+    55: "Medium (regular usage)",
+    76: "High (active usage)",
     100: "Very High (heavy usage)"
 }
 
