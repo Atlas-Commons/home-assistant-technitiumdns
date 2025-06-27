@@ -236,8 +236,19 @@ class TechnitiumDHCPCoordinator(DataUpdateCoordinator):
         _LOGGER.info("Performing batch DNS log query for %d devices", len(ip_addresses))
         
         try:
+            # First, test if DNS logs API is working at all
+            api_test = await self.api.test_dns_logs_api()
+            _LOGGER.debug("DNS logs API test result: %s", api_test)
+            
+            if not api_test.get("available"):
+                _LOGGER.warning("DNS logs API is not available: %s", api_test.get("message"))
+                _LOGGER.warning("Disabling DNS log tracking for this update cycle")
+                # Return early, leaving all devices with default values
+                return processed_leases
+            
             # Single batch call to get last seen times for all devices
-            last_seen_times = await self.api.get_last_seen_for_multiple_ips(ip_addresses, hours_back=48)
+            # Start with a shorter time window (6 hours) for better performance
+            last_seen_times = await self.api.get_last_seen_for_multiple_ips(ip_addresses, hours_back=6)
             
             # Update all leases with the results
             for ip_address, lease in ip_to_lease_map.items():
