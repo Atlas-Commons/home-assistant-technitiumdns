@@ -123,21 +123,44 @@ class SmartActivityAnalyzer:
         """Filter DNS logs for a specific device within the analysis window."""
         cutoff_time = datetime.now() - timedelta(minutes=self.analysis_window_minutes)
         
+        # Debug: Log the first few entries to understand structure
+        if ip_address == "192.168.1.200" and dns_logs:
+            _LOGGER.debug("DNS logs structure debug for %s:", ip_address)
+            for i, log in enumerate(dns_logs[:3]):
+                _LOGGER.debug("Log entry %d: %s", i, log)
+                _LOGGER.debug("Client IP field: %s", log.get('clientIpAddress'))
+                _LOGGER.debug("Available keys: %s", list(log.keys()))
+        
         device_logs = []
+        total_checked = 0
+        ip_matches = 0
+        time_matches = 0
+        
         for log in dns_logs:
-            # Check if log is for this device
-            if log.get('clientIpAddress') != ip_address:
-                continue
+            total_checked += 1
+            
+            # Check if log is for this device - try different possible field names
+            client_ip = log.get('clientIpAddress') or log.get('client_ip') or log.get('clientIp') or log.get('ip')
+            
+            if client_ip == ip_address:
+                ip_matches += 1
                 
-            # Check if log is within time window
-            log_time_str = log.get('timestamp')
-            if log_time_str:
-                try:
-                    log_time = datetime.fromisoformat(log_time_str.replace('Z', '+00:00'))
-                    if log_time.replace(tzinfo=None) >= cutoff_time:
-                        device_logs.append(log)
-                except (ValueError, AttributeError):
-                    continue
+                # Check if log is within time window
+                log_time_str = log.get('timestamp') or log.get('time') or log.get('dateTime')
+                if log_time_str:
+                    try:
+                        log_time = datetime.fromisoformat(log_time_str.replace('Z', '+00:00'))
+                        if log_time.replace(tzinfo=None) >= cutoff_time:
+                            device_logs.append(log)
+                            time_matches += 1
+                    except (ValueError, AttributeError) as e:
+                        if ip_address == "192.168.1.200":
+                            _LOGGER.debug("Time parsing error for %s: %s", log_time_str, e)
+                        continue
+        
+        if ip_address == "192.168.1.200":
+            _LOGGER.debug("Filter results for %s: total_logs=%d, ip_matches=%d, time_matches=%d, final_logs=%d", 
+                         ip_address, total_checked, ip_matches, time_matches, len(device_logs))
                     
         return device_logs
     

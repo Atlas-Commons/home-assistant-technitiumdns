@@ -648,6 +648,17 @@ class TechnitiumDNSApi:
                 if logs_response.get("status") == "ok":
                     dns_logs = logs_response.get("response", {}).get("entries", [])
                     _LOGGER.info("Retrieved %d DNS log entries for activity analysis", len(dns_logs))
+                    
+                    # Debug: Show structure of first few entries
+                    if dns_logs:
+                        _LOGGER.debug("DNS log entry structure sample (first entry):")
+                        _LOGGER.debug("Keys: %s", list(dns_logs[0].keys()) if dns_logs else "No entries")
+                        _LOGGER.debug("Sample entry: %s", dns_logs[0] if dns_logs else "No entries")
+                        
+                        # Check for IPs in first 10 entries
+                        client_ips = [entry.get('clientIpAddress', 'NO_IP') for entry in dns_logs[:10]]
+                        _LOGGER.debug("Sample client IPs from first 10 entries: %s", client_ips)
+                    
                     return dns_logs
                 else:
                     _LOGGER.warning("DNS app logs query failed: %s", logs_response.get("errorMessage"))
