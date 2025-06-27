@@ -1,5 +1,5 @@
 {
-  "domain": "technitiumdns",
+  "domain": "technitiumdnsdhcp",
   "name": "TechnitiumDNS",
   "codeowners": [
     "@Amateur-God",
