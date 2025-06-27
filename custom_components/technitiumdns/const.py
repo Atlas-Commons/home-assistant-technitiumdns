@@ -106,19 +106,99 @@ ACTIVITY_ANALYSIS_WINDOWS = {
 BACKGROUND_DOMAINS = {
     # Time/NTP services
     'time.', 'ntp.', 'pool.ntp.org', 'time.windows.com', 'time.apple.com',
-    # Software updates  
+    'time.nist.gov', 'time.cloudflare.com', 'ntp.ubuntu.com',
+    
+    # Software updates and package managers
     'update.', 'updates.', 'download.', 'windowsupdate.com', 'apple.com/updates',
-    # Telemetry and analytics
-    'telemetry.', 'analytics.', 'metrics.', 'stats.', 'tracking.',
+    'software-update', 'swupdate', 'autoupdate', 'chrome-devtools-frontend',
+    'packages.', 'repo.', 'repository.', 'dl.google.com', 'releases.ubuntu.com',
+    
+    # Telemetry and analytics (comprehensive list)
+    'telemetry.', 'analytics.', 'metrics.', 'stats.', 'tracking.', 'beacon.',
     'google-analytics.com', 'googletagmanager.com', 'facebook.com/tr',
-    # Certificate/Security checks
-    'ocsp.', 'crl.', 'certificate.', 'ssl.', 'security.',
-    # IoT/Smart home background
-    'amazonaws.com', 'googleapi.', 'icloud.com', 'live.com',
-    # DNS infrastructure
-    'root-servers.net', 'gtld-servers.net',
-    # Common background services
-    'connectivity-check.', 'captive.apple.com', 'msftconnecttest.com'
+    'amplitude.com', 'mixpanel.com', 'segment.', 'hotjar.com', 'fullstory.com',
+    'newrelic.com', 'datadog.com', 'sentry.io', 'bugsnag.com', 'crashlytics.',
+    'flurry.com', 'countly.', 'umeng.com', 'adjust.com', 'appsflyer.com',
+    'branch.io', 'kochava.com', 'singular.net', 'tune.com', 'apsalar.com',
+    
+    # Certificate/Security/OCSP
+    'ocsp.', 'crl.', 'certificate.', 'ssl.', 'security.', 'pki.',
+    'certs.', 'ca-', 'revocation.', 'validation.',
+    
+    # Cloud and CDN infrastructure
+    'amazonaws.com', 'googleapi.', 'icloud.com', 'live.com', 'outlook.com',
+    'cloudfront.net', 'akamai.', 'fastly.com', 'cloudflare.com',
+    'azureedge.net', 'msecnd.net', 'edge.', 'cdn.', 'static.',
+    
+    # DNS infrastructure and connectivity
+    'root-servers.net', 'gtld-servers.net', 'dns.', 'resolver.',
+    'connectivity-check.', 'captive.apple.com', 'msftconnecttest.com',
+    'connectivitycheck.', 'generate_204', 'clients1.google.com',
+    
+    # Operating system background services
+    'wpad.', 'isatap.', 'teredo.', 'ipv6.', 'localhost.',
+    'safebrowsing.', 'phishing-protection.', 'malware-check.',
+    
+    # Error reporting and crash dumps
+    'crash.', 'crashdump.', 'watson.', 'error-report.', 'dump.',
+    'feedback.', 'report.', 'diagnostic.',
+    
+    # Location and geolocation services
+    'location.', 'geoip.', 'geolocation.', 'whereami.', 'ipinfo.',
+    'maxmind.com', 'geonames.org', 'ip-api.com',
+    
+    # Push notification services
+    'push.', 'notification.', 'fcm.googleapis.com', 'apple-push.',
+    'pusher.', 'pushwoosh.', 'onesignal.com', 'urbanairship.com',
+    
+    # Sync services (automatic data synchronization)
+    'sync.', 'backup.', 'cloud-sync.', 'dropbox-sync.', 'onedrive.',
+    'googlesync.', 'icloud-sync.', 'account-sync.',
+    
+    # Smart TV and IoT device communication
+    'samsung.', 'lg.com', 'sony.', 'roku.', 'netflix.', 'hulu.',
+    'amazonvideo.', 'smart-tv.', 'iot.', 'alexa.', 'googlehome.',
+    
+    # Gaming platform background services
+    'steam.', 'origin.', 'uplay.', 'battlenet.', 'epicgames.',
+    'xbox.', 'playstation.', 'nintendo.', 'gamepass.',
+    
+    # Browser background processes
+    'safebrowsing.googleapis.com', 'chrome-variations.',
+    'firefox-settings.', 'edge-enterprise.', 'browser-update.',
+    'extension-update.', 'addon-update.',
+    
+    # Ad/tracking domains (background activity)
+    'doubleclick.', 'googleadservices.', 'googlesyndication.',
+    'facebook.com/tr', 'twitter.com/i/', 'linkedin.com/px/',
+    'pinterest.com/ct/', 'bing.com/th', 'yahoo.com/p',
+    
+    # System monitoring and health checks
+    'monitor.', 'health-check.', 'status.', 'ping.', 'heartbeat.',
+    'uptime.', 'availability.', 'probe.',
+    
+    # Configuration and settings synchronization
+    'config.', 'settings.', 'preferences.', 'profile-sync.',
+    'user-data.', 'account-info.',
+    
+    # License verification and activation
+    'license.', 'activation.', 'verify.', 'validate.', 'auth.',
+    'activation-server.', 'product-key.',
+    
+    # Weather services (often background updates)
+    'weather.', 'forecast.', 'openweathermap.', 'accuweather.',
+    'weather-api.', 'meteo.',
+    
+    # News and content feeds (RSS, etc.)
+    'feed.', 'rss.', 'news-feed.', 'content-update.',
+    'headlines.', 'breaking-news.',
+    
+    # VPN and proxy detection
+    'vpn-detect.', 'proxy-check.', 'tor-check.', 'anonymizer-detect.',
+    
+    # Version checks and compatibility
+    'version.', 'compatibility.', 'support-check.', 'feature-flag.',
+    'experiment.', 'a-b-test.',
 }
 
 # Protocol scoring weights

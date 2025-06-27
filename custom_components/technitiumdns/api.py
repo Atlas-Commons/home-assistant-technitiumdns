@@ -92,7 +92,7 @@ class TechnitiumDNSApi:
                         async with session.get(url, params=params) as response:
                             response.raise_for_status()
                             data = await response.json()
-                            _LOGGER.debug("Response: %s", data)
+                            # _LOGGER.debug("Response: %s", data)
                             if data.get("status") != "ok":
                                 raise Exception(f"Error fetching data: {data.get('errorMessage')}")
                             return data
