@@ -759,11 +759,17 @@ class TechnitiumDHCPDeviceActivityScoreSensor(TechnitiumDHCPDeviceDiagnosticSens
         """Return additional attributes."""
         device_data = self._get_device_data()
         if device_data and device_data.get("activity_score", 0) > 0:
+            # Get score threshold from activity analyzer if available
+            threshold = "N/A"
+            if hasattr(self.coordinator, 'activity_analyzer') and self.coordinator.activity_analyzer:
+                threshold = self.coordinator.activity_analyzer.score_threshold
+                # threshold = getattr(self.coordinator.activity_analyzer, 'score_threshold', "N/A")
+            
             return {
                 "activity_summary": device_data.get("activity_summary", ""),
                 "is_actively_used": device_data.get("is_actively_used", False),
                 "score_breakdown": device_data.get("score_breakdown", {}),
-                "threshold": getattr(self.coordinator, 'activity_analyzer', {}).get('score_threshold', "N/A") if hasattr(self.coordinator, 'activity_analyzer') else "N/A"
+                "threshold": threshold
             }
         return {}
 
