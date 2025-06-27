@@ -71,8 +71,10 @@ async def async_setup_entry(hass, entry, async_add_entities):
             dhcp_coordinator = coordinators["dhcp"]
             _LOGGER.info("DHCP coordinator found, creating device diagnostic sensors")
             
-            # Create diagnostic sensors for each tracked device
+            # Always try to create sensors, even if no data is available yet
+            # This ensures sensors are available when data becomes available
             if dhcp_coordinator.data:
+                _LOGGER.info("DHCP coordinator has %d devices, creating diagnostic sensors", len(dhcp_coordinator.data))
                 for lease in dhcp_coordinator.data:
                     mac_address = lease.get("mac_address", "")
                     hostname = lease.get("hostname", "")
@@ -86,7 +88,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
                     else:
                         device_name = f"Unknown_Device_{ip_address}"
                     
-                    _LOGGER.debug("Creating diagnostic sensors for device: %s (MAC: %s)", device_name, mac_address)
+                    _LOGGER.info("Creating diagnostic sensors for device: %s (MAC: %s, IP: %s)", device_name, mac_address, ip_address)
                     
                     diagnostic_sensors = [
                         TechnitiumDHCPDeviceIPSensor(dhcp_coordinator, mac_address, server_name, entry.entry_id, device_name),
@@ -103,10 +105,11 @@ async def async_setup_entry(hass, entry, async_add_entities):
                     ]
                     
                     sensors.extend(diagnostic_sensors)
-                    _LOGGER.debug("Created %d diagnostic sensors for device %s", len(diagnostic_sensors), device_name)
+                    _LOGGER.info("Created %d diagnostic sensors for device %s", len(diagnostic_sensors), device_name)
                 
-                _LOGGER.info("Created %d device diagnostic sensors for %d devices", 
-                           len(sensors) - len(SENSOR_TYPES), len(dhcp_coordinator.data))
+                _LOGGER.info("Created %d total device diagnostic sensors for %d devices", len(sensors) - len(SENSOR_TYPES), len(dhcp_coordinator.data))
+            else:
+                _LOGGER.warning("DHCP coordinator has no data yet, diagnostic sensors will be created when data becomes available")
         else:
             _LOGGER.info("DHCP coordinator not available yet, only creating main DNS sensors")
         
@@ -297,8 +300,7 @@ class TechnitiumDHCPDeviceDiagnosticSensor(CoordinatorEntity, SensorEntity):
         
         for i, device in enumerate(self.coordinator.data):
             device_mac = device.get("mac_address", "")
-            _LOGGER.debug("Sensor %s: Device %d MAC: '%s' vs sensor MAC: '%s'", 
-                         self._sensor_type, i, device_mac, self._mac_address)
+            _LOGGER.debug("Sensor %s: Device %d MAC: '%s' vs sensor MAC: '%s'", self._sensor_type, i, device_mac, self._mac_address)
             if device_mac == self._mac_address:  # Both should now be in same format
                 _LOGGER.debug("Sensor %s: Found matching device data", self._sensor_type)
                 return device
@@ -313,7 +315,7 @@ class TechnitiumDHCPDeviceDiagnosticSensor(CoordinatorEntity, SensorEntity):
         return DeviceInfo(
             identifiers={(DOMAIN, f"dhcp_device_{mac_clean}")},
             name=self._device_name,
-            manufacturer="Network Device",
+            manufacturer="Unknown",
             model="DHCP Client",
             via_device=(DOMAIN, self._entry_id),
         )
@@ -327,13 +329,21 @@ class TechnitiumDHCPDeviceDiagnosticSensor(CoordinatorEntity, SensorEntity):
     def available(self):
         """Return if the sensor is available."""
         coordinator_success = self.coordinator.last_update_success
-        device_data = self._get_device_data()
-        has_device_data = device_data is not None
         
-        _LOGGER.debug("Sensor %s availability check: coordinator_success=%s, has_device_data=%s", 
-                     self._sensor_type, coordinator_success, has_device_data)
+        # If coordinator is successful but no data available yet, still mark as available
+        # This allows sensors to show up in UI even before device data is loaded
+        if coordinator_success:
+            device_data = self._get_device_data()
+            has_device_data = device_data is not None
+            
+            _LOGGER.debug("Sensor %s availability check: coordinator_success=%s, has_device_data=%s", 
+                         self._sensor_type, coordinator_success, has_device_data)
+            
+            # Mark as available if coordinator is working, even if device data isn't available yet
+            return True
         
-        return coordinator_success and has_device_data
+        _LOGGER.debug("Sensor %s availability check: coordinator failed", self._sensor_type)
+        return False
 
     @property
     def should_poll(self):
