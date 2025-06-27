@@ -89,7 +89,7 @@ Buttons for:
 
 Device Trackers (Optional):
 
-- DHCP Device Tracking: Monitor devices connected to your Technitium DHCP server
+- **DHCP Device Tracking**: Monitor devices connected to your Technitium DHCP server
   - Shows connected/disconnected status
   - Displays IP addresses, MAC addresses, and hostnames
   - Tracks lease information and expiration times
@@ -101,6 +101,13 @@ Device Trackers (Optional):
     - **Exclude Mode**: Track all devices except those in specified IP ranges
     - Supports single IPs, CIDR notation, and IP ranges
     - Examples: `192.168.1.100`, `192.168.1.0/24`, `192.168.1.1-192.168.1.50`
+
+- **DNS Query Logs Tracking** (Advanced):
+  - **Requires DNS App Installation**: DNS query logging is only available through DNS apps with logging capability
+  - **Not Available by Default**: The Technitium DNS `/api/logs/query` endpoint requires specific DNS app parameters
+  - **Enhanced Device Activity**: When available, provides more accurate last-seen timestamps
+  - **Automatic Detection**: Integration automatically detects and uses available logging DNS apps
+  - **Fallback to DHCP**: When DNS logging is unavailable, uses DHCP leases as primary tracking method
 
 ## Configuration Options
 
