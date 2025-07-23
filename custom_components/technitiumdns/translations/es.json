@@ -24,5 +24,36 @@
                 "title": "Configurar TechnitiumDNS"
             }
         }
+    },
+    "options": {
+        "step": {
+            "init": {
+                "data": {
+                    "enable_dhcp_tracking": "Habilitar seguimiento de dispositivos DHCP",
+                    "dhcp_update_interval": "Intervalo de actualización DHCP (segundos)",
+                    "dhcp_ip_filter_mode": "Modo de filtro de IP",
+                    "dhcp_ip_ranges": "Direcciones IP/Rangos (separados por coma o nueva línea)",
+                    "dhcp_log_tracking": "Habilitar seguimiento de logs DNS",
+                    "dhcp_stale_threshold": "Umbral de inactividad (minutos)",
+                    "dhcp_smart_activity": "Habilitar análisis inteligente de actividad",
+                    "activity_score_threshold": "Umbral de puntuación de actividad (puntos)",
+                    "activity_analysis_window": "Ventana de análisis de actividad (minutos)",
+                    "test_dhcp": "Probar conexión DHCP"
+                },
+                "description": "Habilite el seguimiento de dispositivos DHCP para monitorear dispositivos conectados a su servidor DHCP Technitium. El análisis inteligente de actividad distingue entre actividad real del usuario y tráfico automatizado de fondo (NTP, actualizaciones, telemetría) para eliminar falsos positivos.",
+                "title": "Opciones de TechnitiumDNS"
+            },
+            "dhcp_test": {
+                "data": {
+                    "dhcp_test_results": "Resultados de la prueba DHCP"
+                },
+                "description": "Resultados de la prueba de conexión DHCP. Esto muestra todos los contratos de arrendamiento DHCP disponibles de su servidor Technitium DNS.",
+                "title": "Resultados de la prueba de conexión DHCP"
+            }
+        },
+        "error": {
+            "dhcp_error": "La API DHCP devolvió un error. Verifique la configuración de su servidor Technitium DNS.",
+            "dhcp_connection_failed": "Error al conectar con la API DHCP. Verifique la URL del servidor y el token."
+        }
     }
 }

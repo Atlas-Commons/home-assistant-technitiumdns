@@ -24,5 +24,36 @@
                 "title": "Configura TechnitiumDNS"
             }
         }
+    },
+    "options": {
+        "step": {
+            "init": {
+                "data": {
+                    "enable_dhcp_tracking": "Abilita tracciamento dispositivi DHCP",
+                    "dhcp_update_interval": "Intervallo aggiornamento DHCP (secondi)",
+                    "dhcp_ip_filter_mode": "Modalità filtro IP",
+                    "dhcp_ip_ranges": "Indirizzi IP/Intervalli (separati da virgola o nuova riga)",
+                    "dhcp_log_tracking": "Abilita tracciamento log DNS",
+                    "dhcp_stale_threshold": "Soglia di inattività (minuti)",
+                    "dhcp_smart_activity": "Abilita analisi intelligente dell'attività",
+                    "activity_score_threshold": "Soglia punteggio attività (punti)",
+                    "activity_analysis_window": "Finestra analisi attività (minuti)",
+                    "test_dhcp": "Testa connessione DHCP"
+                },
+                "description": "Abilita il tracciamento dei dispositivi DHCP per monitorare i dispositivi connessi al tuo server DHCP Technitium. L'analisi intelligente dell'attività distingue tra attività reale dell'utente e traffico automatizzato in background (NTP, aggiornamenti, telemetria) per eliminare falsi positivi.",
+                "title": "Opzioni TechnitiumDNS"
+            },
+            "dhcp_test": {
+                "data": {
+                    "dhcp_test_results": "Risultati test DHCP"
+                },
+                "description": "Risultati del test di connessione DHCP. Questo mostra tutti i lease DHCP disponibili dal tuo server Technitium DNS.",
+                "title": "Risultati del test di connessione DHCP"
+            }
+        },
+        "error": {
+            "dhcp_error": "L'API DHCP ha restituito un errore. Controlla la configurazione del tuo server Technitium DNS.",
+            "dhcp_connection_failed": "Connessione all'API DHCP fallita. Verifica l'URL del server e il token."
+        }
     }
 }

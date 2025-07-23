@@ -1,0 +1,33 @@
+cleanup_devices:
+  name: Cleanup Orphaned Devices
+  description: Remove device tracker entities and sensors for devices that no longer match IP filter criteria
+  fields:
+    config_entry_id:
+      name: Config Entry ID
+      description: The configuration entry ID (optional - if not provided, will clean all entries)
+      example: "abc123def456"
+      selector:
+        text:
+
+get_dhcp_leases:
+  name: Get DHCP Leases
+  description: Retrieve all DHCP leases from the Technitium DNS server
+  fields:
+    config_entry_id:
+      name: Config Entry ID
+      description: The configuration entry ID (optional - if not provided, will use the first available entry)
+      example: "abc123def456"
+      selector:
+        text:
+    include_inactive:
+      name: Include Inactive Leases
+      description: Whether to include inactive/expired leases in the results
+      default: false
+      selector:
+        boolean:
+    filter_scope:
+      name: Filter by Scope
+      description: Only return leases from a specific DHCP scope (optional)
+      example: "192.168.1.0/24"
+      selector:
+        text:
