@@ -12,8 +12,8 @@ import contextlib
 import voluptuous as vol
 
 from .const import (
-    DOMAIN, 
-    DHCP_UPDATE_INTERVAL_OPTIONS, 
+    DOMAIN,
+    DHCP_UPDATE_INTERVAL_OPTIONS,
     DHCP_IP_FILTER_MODES,
     DHCP_STALE_THRESHOLD_OPTIONS,
     DEFAULT_DHCP_LOG_TRACKING,
@@ -40,8 +40,9 @@ class TechnitiumDNSConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     @staticmethod
     @callback
-    def async_get_options_flow(config_entry):
-        return TechnitiumDNSOptionsFlowHandler()
+    def async_get_options_flow(config_entry: config_entries.ConfigEntry):
+        """Get the options flow for this handler."""
+        return TechnitiumDNSOptionsFlowHandler(config_entry)
 
     async def async_step_user(self, user_input=None):
         """Handle the initial step."""
@@ -86,7 +87,7 @@ class TechnitiumDNSConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         _LOGGER.debug("Migrating configuration from version %s", config_entry.version)
 
         if config_entry.version == 1:
-            # Version 1 -> 2: Add default DHCP tracking options
+        # Version 1 -> 2: Add default DHCP tracking options
             new_options = dict(config_entry.options)
             if "enable_dhcp_tracking" not in new_options:
                 new_options["enable_dhcp_tracking"] = False
@@ -98,7 +99,7 @@ class TechnitiumDNSConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 new_options["dhcp_ip_ranges"] = ""
 
             hass.config_entries.async_update_entry(
-                config_entry, 
+                config_entry,
                 options=new_options,
                 version=2
             )
@@ -125,11 +126,9 @@ class TechnitiumDNSConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 class TechnitiumDNSOptionsFlowHandler(config_entries.OptionsFlow):
     """Handle an options flow for TechnitiumDNS."""
 
-    def __init__(self, config_entry=None):
+    def __init__(self, config_entry: config_entries.ConfigEntry):
         """Initialize options flow handler."""
-        # For compatibility with different HA versions
-        if config_entry is not None:
-            self.config_entry = config_entry
+        self.config_entry = config_entry
 
     async def async_step_init(self, user_input=None):
         """Manage the options."""
@@ -137,14 +136,14 @@ class TechnitiumDNSOptionsFlowHandler(config_entries.OptionsFlow):
             # Check if test DHCP button was clicked
             if user_input.get("test_dhcp"):
                 return await self.async_step_dhcp_test()
-            
+
             # Remove test_dhcp from user_input before saving
             data_to_save = {k: v for k, v in user_input.items() if k != "test_dhcp"}
             return self.async_create_entry(title="", data=data_to_save)
 
         options_schema = vol.Schema({
             vol.Optional(
-                "enable_dhcp_tracking", 
+                "enable_dhcp_tracking",
                 default=self.config_entry.options.get("enable_dhcp_tracking", False)
             ): bool,
             vol.Optional(
@@ -183,7 +182,7 @@ class TechnitiumDNSOptionsFlowHandler(config_entries.OptionsFlow):
         })
 
         return self.async_show_form(
-            step_id="init", 
+            step_id="init",
             data_schema=options_schema,
             description_placeholders={
                 "dhcp_description": "Enable DHCP device tracking to monitor devices connected to your Technitium DHCP server. Update interval determines how often device status is checked. Use IP filtering to control which devices are tracked based on their IP addresses."
@@ -198,23 +197,21 @@ class TechnitiumDNSOptionsFlowHandler(config_entries.OptionsFlow):
 
         errors = {}
         dhcp_results = ""
-        
+
         try:
             # Get API instance from config entry data
             from .api import TechnitiumDNSApi
-            
+
             config_data = self.config_entry.data
             api = TechnitiumDNSApi(config_data["api_url"], config_data["token"])
-            
+
             # Test DHCP connection
             dhcp_response = await api.get_dhcp_leases()
-            
+
             if dhcp_response.get("status") == "ok":
-                leases = dhcp_response.get("response", {}).get("leases", [])
-                
-                if leases:
+                if leases := dhcp_response.get("response", {}).get("leases", []):
                     dhcp_results = f"✅ Successfully retrieved {len(leases)} DHCP leases:\n\n"
-                    
+
                     for i, lease in enumerate(leases[:20], 1):  # Show first 20 leases
                         dhcp_results += f"Device {i}:\n"
                         dhcp_results += f"  IP: {lease.get('address', 'N/A')}\n"
@@ -226,17 +223,17 @@ class TechnitiumDNSOptionsFlowHandler(config_entries.OptionsFlow):
                         if lease.get('leaseExpires'):
                             dhcp_results += f"  Expires: {lease.get('leaseExpires')}\n"
                         dhcp_results += "\n"
-                    
+
                     if len(leases) > 20:
                         dhcp_results += f"... and {len(leases) - 20} more leases\n"
-                        
+
                     dhcp_results += f"\nRaw API Response:\n{json.dumps(dhcp_response, indent=2)}"
                 else:
                     dhcp_results = "✅ DHCP API connection successful, but no leases found.\n\nThis could mean:\n- No devices are currently connected\n- DHCP server is not configured\n- DHCP scope is empty\n\nRaw API Response:\n" + json.dumps(dhcp_response, indent=2)
             else:
                 dhcp_results = f"❌ DHCP API returned error status: {dhcp_response.get('status')}\n\nResponse: {json.dumps(dhcp_response, indent=2)}"
                 errors["base"] = "dhcp_error"
-                
+
         except Exception as e:
             dhcp_results = f"❌ Failed to retrieve DHCP leases:\n\nError: {str(e)}\n\nPlease check:\n- Technitium DNS server is running\n- API URL is correct\n- Token has DHCP access permissions\n- DHCP server is enabled in Technitium"
             errors["base"] = "dhcp_connection_failed"
