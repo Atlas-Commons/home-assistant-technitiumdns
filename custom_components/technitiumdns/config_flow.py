@@ -31,6 +31,7 @@ from .const import (
 )
 from .api import TechnitiumDNSApi
 
+CONFIG_VERSION = 2
 
 @config_entries.HANDLERS.register(DOMAIN)
 class TechnitiumDNSConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -79,33 +80,6 @@ class TechnitiumDNSConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_import(self, user_input):
         """Handle import from config migration."""
         return await self.async_step_user(user_input)
-
-    @staticmethod
-    async def async_migrate_entry(hass, config_entry):
-        """Migrate old entry."""
-        _LOGGER = logging.getLogger(__name__)
-        _LOGGER.debug("Migrating configuration from version %s", config_entry.version)
-
-        if config_entry.version == 1:
-        # Version 1 -> 2: Add default DHCP tracking options
-            new_options = dict(config_entry.options)
-            if "enable_dhcp_tracking" not in new_options:
-                new_options["enable_dhcp_tracking"] = False
-            if "dhcp_update_interval" not in new_options:
-                new_options["dhcp_update_interval"] = 60
-            if "dhcp_ip_filter_mode" not in new_options:
-                new_options["dhcp_ip_filter_mode"] = "disabled"
-            if "dhcp_ip_ranges" not in new_options:
-                new_options["dhcp_ip_ranges"] = ""
-
-            hass.config_entries.async_update_entry(
-                config_entry,
-                options=new_options,
-                version=2
-            )
-            _LOGGER.info("Migration to version 2 complete")
-
-        return True
 
     async def _test_credentials(self, api_url, token, stats_duration):
         """Test the provided credentials."""
