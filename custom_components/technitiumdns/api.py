@@ -60,10 +60,14 @@ _LOGGER = logging.getLogger(__name__)
 class TechnitiumDNSApi:
     """Class to interact with the TechnitiumDNS API."""
 
-    def __init__(self, api_url, token):
+    def __init__(self, api_url, check_ssl, token):
         """Initialize the API with the provided URL and token."""
         self._api_url = api_url.rstrip("/")
         self._token = token
+        if check_ssl is True:
+            self._check_ssl = None
+        else:
+            self._check_ssl = False
 
     @property
     def api_url(self):
@@ -89,7 +93,7 @@ class TechnitiumDNSApi:
                 try:
                     with async_timeout.timeout(20):  # Increase timeout to 20 seconds
                         _LOGGER.debug("Requesting URL: %s (Attempt %d)", url, attempt + 1)
-                        async with session.get(url, params=params) as response:
+                        async with session.get(url, params=params, ssl=self._check_ssl) as response:
                             response.raise_for_status()
                             data = await response.json()
                             # _LOGGER.debug("Response: %s", data)
@@ -159,7 +163,7 @@ class TechnitiumDNSApi:
             try:
                 with async_timeout.timeout(10):
                     _LOGGER.debug("Requesting URL: %s", url)
-                    async with session.get(url, params=params) as response:
+                    async with session.get(url, params=params, ssl=self._check_ssl) as response:
                         response.raise_for_status()
                         data = await response.json()
                         # _LOGGER.debug("Response: %s", data)

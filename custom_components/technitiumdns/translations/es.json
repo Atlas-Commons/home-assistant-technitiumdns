@@ -14,6 +14,7 @@
             "user": {
                 "data": {
                     "api_url": "URL",
+                    "check_ssl": "Verificar SSL",
                     "token": "Clave API",
                     "username": "Nombre de usuario",
                     "server_name": "Nombre del servidor",

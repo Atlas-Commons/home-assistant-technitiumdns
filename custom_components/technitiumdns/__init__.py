@@ -19,7 +19,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up TechnitiumDNS from a config entry."""
     _LOGGER.info("Setting up TechnitiumDNS integration for entry %s", entry.entry_id)
     hass.data.setdefault(DOMAIN, {})
-    api = TechnitiumDNSApi(entry.data["api_url"], entry.data["token"])
+    
+    api = TechnitiumDNSApi(entry.data["api_url"], entry.data.get("check_ssl", True), entry.data["token"])
     
     # Determine which platforms to load based on options
     platforms = ["button", "switch"]
@@ -38,6 +39,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     _LOGGER.debug("Options: %s", entry.options)
     _LOGGER.info("Platforms to load: %s", platforms)
     
+
     hass.data[DOMAIN][entry.entry_id] = {
         "api": api,
         "server_name": entry.data["server_name"],
