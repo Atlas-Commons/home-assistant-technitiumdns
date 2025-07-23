@@ -100,10 +100,6 @@ class TechnitiumDNSConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 class TechnitiumDNSOptionsFlowHandler(config_entries.OptionsFlow):
     """Handle an options flow for TechnitiumDNS."""
 
-    def __init__(self, config_entry: config_entries.ConfigEntry):
-        """Initialize options flow handler."""
-        self.config_entry = config_entry
-
     async def async_step_init(self, user_input=None):
         """Manage the options."""
         if user_input is not None:
