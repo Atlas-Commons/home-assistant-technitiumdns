@@ -1,5 +1,6 @@
 """Constants for the TechnitiumDNS integration."""
 
+
 DOMAIN = "technitiumdns"
 
 DURATION_OPTIONS = ["LastHour", "LastDay", "LastWeek", "LastMonth"]
@@ -12,6 +13,21 @@ AD_BLOCKING_DURATION_OPTIONS = {
     30: "Disable Ad Blocking for 30 Minutes",
     60: "Disable Ad Blocking for 60 Minutes",
     1440: "Disable Ad Blocking for 1 Day",
+}
+
+# DHCP Device Tracking Options
+CONF_ENABLE_DHCP_TRACKING = "enable_dhcp_tracking"
+CONF_DHCP_UPDATE_INTERVAL = "dhcp_update_interval"
+CONF_DHCP_IP_FILTER_MODE = "dhcp_ip_filter_mode"
+CONF_DHCP_IP_RANGES = "dhcp_ip_ranges"
+
+DHCP_UPDATE_INTERVAL_OPTIONS = [30, 60, 180, 300, 600]  # seconds
+
+# IP Filter modes
+DHCP_IP_FILTER_MODES = {
+    "disabled": "No IP filtering",
+    "include": "Include only specified IPs/ranges",
+    "exclude": "Exclude specified IPs/ranges"
 }
 
 SENSOR_TYPES = {
@@ -36,4 +52,281 @@ SENSOR_TYPES = {
     "top_clients": {"name": "Top Clients", "state_class": None, "device_class": None},
     "top_domains": {"name": "Top Domains", "state_class": None, "device_class": None},
     "top_blocked_domains": {"name": "Top Blocked Domains", "state_class": None, "device_class": None},
+}
+
+# DNS Log tracking options
+CONF_DHCP_LOG_TRACKING = "dhcp_log_tracking"
+CONF_DHCP_STALE_THRESHOLD = "dhcp_stale_threshold"
+
+# Default values for new options
+DEFAULT_DHCP_LOG_TRACKING = False
+DEFAULT_DHCP_STALE_THRESHOLD = 60  # minutes
+
+# Stale threshold options (in minutes)
+DHCP_STALE_THRESHOLD_OPTIONS = {
+    5: "5 minutes",
+    15: "15 minutes",
+    30: "30 minutes",
+    60: "1 hour",
+    120: "2 hours",
+    240: "4 hours",
+    480: "8 hours",
+    720: "12 hours",
+    1440: "24 hours"
+}
+
+# Smart Activity Scoring Options
+CONF_DHCP_SMART_ACTIVITY = "dhcp_smart_activity"
+CONF_ACTIVITY_SCORE_THRESHOLD = "activity_score_threshold"
+CONF_ACTIVITY_ANALYSIS_WINDOW = "activity_analysis_window"
+
+# Default values for smart activity
+DEFAULT_DHCP_SMART_ACTIVITY = True
+DEFAULT_ACTIVITY_SCORE_THRESHOLD = 55  # Score needed to consider device "actively used"
+DEFAULT_ACTIVITY_ANALYSIS_WINDOW = 120  # Minutes to analyze for activity patterns (2 hours)
+
+# Activity scoring thresholds
+ACTIVITY_SCORE_THRESHOLDS = {
+    10: "Very Low (mostly background)",
+    33: "Low (some user activity)",
+    55: "Medium (regular usage)",
+    76: "High (active usage)",
+    100: "Very High (heavy usage)"
+}
+
+# Analysis window options (in minutes)
+ACTIVITY_ANALYSIS_WINDOWS = {
+    15: "15 minutes",
+    30: "30 minutes",
+    60: "1 hour",
+    120: "2 hours",
+    240: "4 hours"
+}
+
+# Background traffic patterns (domains that indicate automated activity)
+BACKGROUND_DOMAINS = {
+    'time.',
+    'ntp.',
+    'pool.ntp.org',
+    'time.windows.com',
+    'time.apple.com',
+    'time.nist.gov',
+    'time.cloudflare.com',
+    'ntp.ubuntu.com',
+    'update.',
+    'updates.',
+    'download.',
+    'windowsupdate.com',
+    'apple.com/updates',
+    'software-update',
+    'swupdate',
+    'autoupdate',
+    'chrome-devtools-frontend',
+    'packages.',
+    'repo.',
+    'repository.',
+    'dl.google.com',
+    'releases.ubuntu.com',
+    'telemetry.',
+    'analytics.',
+    'metrics.',
+    'stats.',
+    'tracking.',
+    'beacon.',
+    'google-analytics.com',
+    'googletagmanager.com',
+    'amplitude.com',
+    'mixpanel.com',
+    'segment.',
+    'hotjar.com',
+    'fullstory.com',
+    'newrelic.com',
+    'datadog.com',
+    'sentry.io',
+    'bugsnag.com',
+    'crashlytics.',
+    'flurry.com',
+    'countly.',
+    'umeng.com',
+    'adjust.com',
+    'appsflyer.com',
+    'branch.io',
+    'kochava.com',
+    'singular.net',
+    'tune.com',
+    'apsalar.com',
+    'ocsp.',
+    'crl.',
+    'certificate.',
+    'ssl.',
+    'security.',
+    'pki.',
+    'certs.',
+    'ca-',
+    'revocation.',
+    'validation.',
+    'amazonaws.com',
+    'googleapi.',
+    'icloud.com',
+    'live.com',
+    'outlook.com',
+    'cloudfront.net',
+    'akamai.',
+    'fastly.com',
+    'cloudflare.com',
+    'azureedge.net',
+    'msecnd.net',
+    'edge.',
+    'cdn.',
+    'static.',
+    'root-servers.net',
+    'gtld-servers.net',
+    'dns.',
+    'resolver.',
+    'connectivity-check.',
+    'captive.apple.com',
+    'msftconnecttest.com',
+    'connectivitycheck.',
+    'generate_204',
+    'clients1.google.com',
+    'wpad.',
+    'isatap.',
+    'teredo.',
+    'ipv6.',
+    'localhost.',
+    'safebrowsing.',
+    'phishing-protection.',
+    'malware-check.',
+    'crash.',
+    'crashdump.',
+    'watson.',
+    'error-report.',
+    'dump.',
+    'feedback.',
+    'report.',
+    'diagnostic.',
+    'location.',
+    'geoip.',
+    'geolocation.',
+    'whereami.',
+    'ipinfo.',
+    'maxmind.com',
+    'geonames.org',
+    'ip-api.com',
+    'push.',
+    'notification.',
+    'fcm.googleapis.com',
+    'apple-push.',
+    'pusher.',
+    'pushwoosh.',
+    'onesignal.com',
+    'urbanairship.com',
+    'sync.',
+    'backup.',
+    'cloud-sync.',
+    'dropbox-sync.',
+    'onedrive.',
+    'googlesync.',
+    'icloud-sync.',
+    'account-sync.',
+    'samsung.',
+    'lg.com',
+    'sony.',
+    'roku.',
+    'netflix.',
+    'hulu.',
+    'amazonvideo.',
+    'smart-tv.',
+    'iot.',
+    'alexa.',
+    'googlehome.',
+    'steam.',
+    'origin.',
+    'uplay.',
+    'battlenet.',
+    'epicgames.',
+    'xbox.',
+    'playstation.',
+    'nintendo.',
+    'gamepass.',
+    'safebrowsing.googleapis.com',
+    'chrome-variations.',
+    'firefox-settings.',
+    'edge-enterprise.',
+    'browser-update.',
+    'extension-update.',
+    'addon-update.',
+    'doubleclick.',
+    'googleadservices.',
+    'googlesyndication.',
+    'facebook.com/tr',
+    'twitter.com/i/',
+    'linkedin.com/px/',
+    'pinterest.com/ct/',
+    'bing.com/th',
+    'yahoo.com/p',
+    'monitor.',
+    'health-check.',
+    'status.',
+    'ping.',
+    'heartbeat.',
+    'uptime.',
+    'availability.',
+    'probe.',
+    'config.',
+    'settings.',
+    'preferences.',
+    'profile-sync.',
+    'user-data.',
+    'account-info.',
+    'license.',
+    'activation.',
+    'verify.',
+    'validate.',
+    'auth.',
+    'activation-server.',
+    'product-key.',
+    'weather.',
+    'forecast.',
+    'openweathermap.',
+    'accuweather.',
+    'weather-api.',
+    'meteo.',
+    'feed.',
+    'rss.',
+    'news-feed.',
+    'content-update.',
+    'headlines.',
+    'breaking-news.',
+    'vpn-detect.',
+    'proxy-check.',
+    'tor-check.',
+    'anonymizer-detect.',
+    'version.',
+    'compatibility.',
+    'support-check.',
+    'feature-flag.',
+    'experiment.',
+    'a-b-test.',
+}
+
+# Protocol scoring weights
+PROTOCOL_WEIGHTS = {
+    'UDP': 0.3,  # Lower weight for UDP (often background)
+    'TCP': 1.0,  # Full weight for TCP (usually interactive)
+    'HTTPS': 1.2,  # Higher weight for HTTPS (user browsing)
+    'HTTP': 0.8   # Medium weight for HTTP
+}
+
+# Query type scoring weights
+QUERY_TYPE_WEIGHTS = {
+    'A': 1.0,      # Standard domain lookup
+    'AAAA': 1.0,   # IPv6 lookup
+    'CNAME': 0.8,  # Alias lookup
+    'MX': 0.6,     # Mail exchange (often background)
+    'TXT': 0.5,    # Text records (often automated)
+    'SRV': 0.4,    # Service discovery (often background)
+    'PTR': 0.3,    # Reverse lookup (often automated)
+    'SOA': 0.2,    # Zone transfer (automated)
+    'NS': 0.2      # Name server lookup (automated)
 }

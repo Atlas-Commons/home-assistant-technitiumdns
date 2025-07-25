@@ -4,6 +4,7 @@
       "user": {
         "data": {
           "api_url": "[%key:common::config_flow::data::url%]",
+          "check_ssl": "[%key:common::config_flow::data::check_ssl%]",
           "token": "[%key:common::config_flow::data::api_key%]",
           "server_name": "Server Name",
           "username": "[%key:common::config_flow::data::username%]",
@@ -22,6 +23,34 @@
     "abort": {
       "already_configured": "[%key:common::config_flow::abort::already_configured_service%]",
       "reauth_successful": "[%key:common::config_flow::abort::reauth_successful%]"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "data": {
+          "enable_dhcp_tracking": "Enable DHCP Device Tracking",
+          "dhcp_update_interval": "DHCP Update Interval (seconds)",
+          "dhcp_ip_filter_mode": "IP Filter Mode", 
+          "dhcp_ip_ranges": "IP Addresses/Ranges (comma or newline separated)",
+          "dhcp_log_tracking": "Enable DNS Log Tracking",
+          "dhcp_stale_threshold": "Staleness Threshold (minutes)",
+          "test_dhcp": "Test DHCP Connection"
+        },
+        "description": "{dhcp_description}",
+        "title": "TechnitiumDNS Options"
+      },
+      "dhcp_test": {
+        "data": {
+          "dhcp_test_results": "DHCP Test Results"
+        },
+        "description": "{test_results}",
+        "title": "DHCP Connection Test Results"
+      }
+    },
+    "error": {
+      "dhcp_error": "DHCP API returned an error. Check your Technitium DNS server configuration.",
+      "dhcp_connection_failed": "Failed to connect to DHCP API. Verify your server URL and token."
     }
   }
 }

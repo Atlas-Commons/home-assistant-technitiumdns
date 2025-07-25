@@ -14,6 +14,7 @@
             "user": {
                 "data": {
                     "api_url": "URL",
+                    "check_ssl": "Vérifier SSL",
                     "token": "Clé API",
                     "username": "Nom d'utilisateur",
                     "server_name": "Nom du serveur",
@@ -22,6 +23,37 @@
                 "description": "Veuillez entrer vos informations API TechnitiumDNS.",
                 "title": "Configurer TechnitiumDNS"
             }
+        }
+    },
+    "options": {
+        "step": {
+            "init": {
+                "data": {
+                    "enable_dhcp_tracking": "Activer le suivi des appareils DHCP",
+                    "dhcp_update_interval": "Intervalle de mise à jour DHCP (secondes)",
+                    "dhcp_ip_filter_mode": "Mode de filtre IP",
+                    "dhcp_ip_ranges": "Adresses IP/Plages (séparées par virgule ou nouvelle ligne)",
+                    "dhcp_log_tracking": "Activer le suivi des logs DNS",
+                    "dhcp_stale_threshold": "Seuil d'inactivité (minutes)",
+                    "dhcp_smart_activity": "Activer l'analyse intelligente d'activité",
+                    "activity_score_threshold": "Seuil de score d'activité (points)",
+                    "activity_analysis_window": "Fenêtre d'analyse d'activité (minutes)",
+                    "test_dhcp": "Tester la connexion DHCP"
+                },
+                "description": "Activez le suivi des appareils DHCP pour surveiller les appareils connectés à votre serveur DHCP Technitium. L'analyse intelligente d'activité distingue entre l'activité réelle de l'utilisateur et le trafic automatisé en arrière-plan (NTP, mises à jour, télémétrie) pour éliminer les faux positifs.",
+                "title": "Options TechnitiumDNS"
+            },
+            "dhcp_test": {
+                "data": {
+                    "dhcp_test_results": "Résultats du test DHCP"
+                },
+                "description": "Résultats du test de connexion DHCP. Cela montre tous les baux DHCP disponibles de votre serveur Technitium DNS.",
+                "title": "Résultats du test de connexion DHCP"
+            }
+        },
+        "error": {
+            "dhcp_error": "L'API DHCP a retourné une erreur. Vérifiez la configuration de votre serveur Technitium DNS.",
+            "dhcp_connection_failed": "Échec de la connexion à l'API DHCP. Vérifiez l'URL de votre serveur et le token."
         }
     }
 }

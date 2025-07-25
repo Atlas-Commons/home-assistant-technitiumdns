@@ -14,6 +14,7 @@
             "user": {
                 "data": {
                     "api_url": "URL",
+                    "check_ssl": "Check SSL",
                     "token": "API key",
                     "username": "Username",
                     "server_name": "Server Name",
@@ -22,6 +23,37 @@
                 "description": "Please enter your TechnitiumDNS API information.",
                 "title": "Configure TechnitiumDNS"
             }
+        }
+    },
+    "options": {
+        "step": {
+            "init": {
+                "data": {
+                    "enable_dhcp_tracking": "Enable DHCP Device Tracking",
+                    "dhcp_update_interval": "DHCP Update Interval (seconds)",
+                    "dhcp_ip_filter_mode": "IP Filter Mode",
+                    "dhcp_ip_ranges": "IP Addresses/Ranges (comma or newline separated)",
+                    "dhcp_log_tracking": "Enable DNS Log Tracking",
+                    "dhcp_stale_threshold": "Staleness Threshold (minutes)",
+                    "dhcp_smart_activity": "Enable Smart Activity Analysis",
+                    "activity_score_threshold": "Activity Score Threshold (points)",
+                    "activity_analysis_window": "Activity Analysis Window (minutes)",
+                    "test_dhcp": "Test DHCP Connection"
+                },
+                "description": "Enable DHCP device tracking to monitor devices connected to your Technitium DHCP server. Smart Activity Analysis distinguishes between genuine user activity and automated background traffic (NTP, updates, telemetry) to eliminate false positives.",
+                "title": "TechnitiumDNS Options"
+            },
+            "dhcp_test": {
+                "data": {
+                    "dhcp_test_results": "DHCP Test Results"
+                },
+                "description": "Results of the DHCP connection test. This shows all available DHCP leases from your Technitium DNS server.",
+                "title": "DHCP Connection Test Results"
+            }
+        },
+        "error": {
+            "dhcp_error": "DHCP API returned an error. Check your Technitium DNS server configuration.",
+            "dhcp_connection_failed": "Failed to connect to DHCP API. Verify your server URL and token."
         }
     }
 }
