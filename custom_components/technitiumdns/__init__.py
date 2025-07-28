@@ -23,13 +23,51 @@ from .api import TechnitiumDNSApi
 
 _LOGGER = logging.getLogger(__name__)
 
+async def _async_migrate_unique_ids(hass: HomeAssistant, entry: ConfigEntry):
+    """Migrate the unique_ids of existing sensors to the new format."""
+    _LOGGER.info("Starting unique_id migration for TechnitiumDNS sensors.")
+    entity_registry = er.async_get(hass)
+
+    entities = er.async_entries_for_config_entry(entity_registry, entry.entry_id)
+
+    migrated_count = 0
+    for entity in entities:
+        if entity.unique_id.startswith("Technitiumdns_"):
+            try:
+                parts = entity.unique_id.split('_', 2)
+                if len(parts) != 3:
+                    continue
+
+                _, sensor_type, server_name = parts
+
+                new_unique_id = f"{DOMAIN}_dns_stats_{sensor_type}_{server_name.replace(' ', '_').lower()}"
+
+                _LOGGER.debug(
+                    "Migrating unique_id for entity %s from '%s' to '%s'",
+                    entity.entity_id, entity.unique_id, new_unique_id
+                )
+
+                entity_registry.async_update_entity(
+                    entity.entity_id, new_unique_id=new_unique_id
+                )
+                migrated_count += 1
+            except Exception as e:
+                _LOGGER.error(
+                    "Error migrating unique_id for entity %s: %s", entity.entity_id, e
+                )
+
+    if migrated_count > 0:
+        _LOGGER.info("Successfully migrated %d sensor unique_ids.", migrated_count)
+    else:
+        _LOGGER.info("No sensor unique_ids required migration.")
+
+
 async def async_migrate_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> bool:
     """Migrate an old config entry to a new version."""
     _LOGGER.info(
         "Migrating config entry '%s' from version %s to %s",
         config_entry.title,
         config_entry.version,
-        CONFIG_VERSION,
     )
 
     # --- Migration from version 1 to 2 ---
@@ -57,14 +95,21 @@ async def async_migrate_entry(hass: HomeAssistant, config_entry: ConfigEntry) ->
 
         # Update the config entry with new data, options, and version
         hass.config_entries.async_update_entry(
-            config_entry, data=new_data, options=new_options, version=CONFIG_VERSION
+            config_entry, data=new_data, options=new_options, version=2
         )
+        _LOGGER.info("Successfully migrated config entry to version 2.")
 
-        _LOGGER.info(
-            "Successfully migrated config entry '%s' to version %s.",
-            config_entry.title,
-            CONFIG_VERSION,
-        )
+
+    # --- Migration from version 2 to 3 ---
+    # This handles users who were on 2.4.0 and need the unique_id fix.
+    # It will also run for users who were just migrated from v1.
+    if config_entry.version == 2:
+        # Only run the unique_id migration
+        await _async_migrate_unique_ids(hass, config_entry)
+
+        # Update the version to 3
+        hass.config_entries.async_update_entry(config_entry, version=3)
+        _LOGGER.info("Successfully migrated config entry to version 3.")
 
     return True
 
