@@ -18,6 +18,7 @@ from .api import TechnitiumDNSApi
 _LOGGER = logging.getLogger(__name__)
 
 SCAN_INTERVAL = timedelta(minutes=1)
+UPDATE_CHECK_INTERVAL = timedelta(hours=1)
 
 async def _create_device_sensors(leases, dhcp_coordinator, server_name, entry_id):
     """Create diagnostic sensors for a list of device leases."""
@@ -147,6 +148,8 @@ class TechnitiumDNSCoordinator(DataUpdateCoordinator):
         """Initialize."""
         self.api = api
         self.stats_duration = stats_duration
+        self._last_update_check = None
+        self._cached_update_info = None
         super().__init__(hass, _LOGGER, name=DOMAIN, update_interval=SCAN_INTERVAL)
 
     async def _async_update_data(self):
@@ -154,7 +157,28 @@ class TechnitiumDNSCoordinator(DataUpdateCoordinator):
         try:
             _LOGGER.debug("Fetching data from TechnitiumDNS API")
             Technitiumdns_statistics = await self.api.get_statistics(self.stats_duration)
-            Technitiumdns_update_info = await self.api.check_update()
+
+            # Update check
+            current_time = dt_util.utcnow()
+            should_check_updates = (
+                self._last_update_check is None or
+                current_time - self._last_update_check >= UPDATE_CHECK_INTERVAL
+            )
+
+            if should_check_updates:
+                _LOGGER.debug("Checking for updates (hourly check)")
+                try:
+                    Technitiumdns_update_info = await self.api.check_update()
+                    self._cached_update_info = Technitiumdns_update_info
+                    self._last_update_check = current_time
+                    _LOGGER.debug("Update check completed, cached for next hour")
+                except Exception as update_err:
+                    _LOGGER.warning("Failed to check for updates: %s, using cached data", update_err)
+                    # Keep using cached data if update check fails
+            else:
+                _LOGGER.debug("Using cached update info (next check in %s)",
+                             UPDATE_CHECK_INTERVAL - (current_time - self._last_update_check))
+                Technitiumdns_update_info = self._cached_update_info or {"response": {"updateAvailable": False}}
 
             # Add logging to debug response content
             # _LOGGER.debug("Technitiumdns_statistics response content: %s", Technitiumdns_statistics)
