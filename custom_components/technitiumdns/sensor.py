@@ -1,5 +1,6 @@
 from datetime import timedelta, datetime
 import logging
+import asyncio
 
 from homeassistant.components.sensor import SensorEntity, SensorDeviceClass
 from homeassistant.util import dt as dt_util
@@ -11,7 +12,7 @@ from homeassistant.helpers.update_coordinator import (
 from homeassistant.helpers.entity import DeviceInfo, EntityCategory
 from homeassistant.exceptions import ConfigEntryNotReady
 
-from .const import DOMAIN, SENSOR_TYPES
+from .const import DOMAIN, SENSOR_TYPES, DEFAULT_UPDATE_INFO
 from .utils import normalize_mac_address, parse_timestamp
 from .api import TechnitiumDNSApi
 
@@ -172,13 +173,18 @@ class TechnitiumDNSCoordinator(DataUpdateCoordinator):
                     self._cached_update_info = Technitiumdns_update_info
                     self._last_update_check = current_time
                     _LOGGER.debug("Update check completed, cached for next hour")
-                except Exception as update_err:
-                    _LOGGER.warning("Failed to check for updates: %s, using cached data", update_err)
+                except (ClientError, asyncio.TimeoutError) as update_err:
+                    _LOGGER.warning(
+                        "Failed to check for updates: %s, using cached data",
+                        update_err,
+                    )
                     # Keep using cached data if update check fails
             else:
-                _LOGGER.debug("Using cached update info (next check in %s)",
-                             UPDATE_CHECK_INTERVAL - (current_time - self._last_update_check))
-                Technitiumdns_update_info = self._cached_update_info or {"response": {"updateAvailable": False}}
+                _LOGGER.debug("Using cached update info")
+                Technitiumdns_update_info = (
+                    self._cached_update_info
+                    or DEFAULT_UPDATE_INFO
+                )
 
             # Add logging to debug response content
             # _LOGGER.debug("Technitiumdns_statistics response content: %s", Technitiumdns_statistics)

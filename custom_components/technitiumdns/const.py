@@ -54,6 +54,12 @@ SENSOR_TYPES = {
     "top_blocked_domains": {"name": "Top Blocked Domains", "state_class": None, "device_class": None},
 }
 
+# Default update info structure (mirrors API shape for checkForUpdate)
+DEFAULT_UPDATE_INFO = {
+    "status": "ok",
+    "response": {"updateAvailable": False},
+}
+
 # DNS Log tracking options
 CONF_DHCP_LOG_TRACKING = "dhcp_log_tracking"
 CONF_DHCP_STALE_THRESHOLD = "dhcp_stale_threshold"
