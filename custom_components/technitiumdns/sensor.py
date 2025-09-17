@@ -1,6 +1,7 @@
 from datetime import timedelta, datetime
 import logging
 import asyncio
+from aiohttp import ClientError
 
 from homeassistant.components.sensor import SensorEntity, SensorDeviceClass
 from homeassistant.util import dt as dt_util
