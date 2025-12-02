@@ -43,7 +43,7 @@ class TechnitiumDNSConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     @callback
     def async_get_options_flow(config_entry: config_entries.ConfigEntry):
         """Get the options flow for this handler."""
-        return TechnitiumDNSOptionsFlowHandler(config_entry)
+        return TechnitiumDNSOptionsFlowHandler()
 
     async def async_step_user(self, user_input=None):
         """Handle the initial step."""
@@ -99,10 +99,6 @@ class TechnitiumDNSConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
 class TechnitiumDNSOptionsFlowHandler(config_entries.OptionsFlow):
     """Handle an options flow for TechnitiumDNS."""
-
-    def __init__(self, config_entry: config_entries.ConfigEntry):
-        """Initialize options flow handler."""
-        self.config_entry = config_entry
 
     async def async_step_init(self, user_input=None):
         """Manage the options."""
