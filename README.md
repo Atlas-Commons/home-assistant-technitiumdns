@@ -9,6 +9,14 @@
 
 This custom integration allows you to integrate technitiumDNS with Home Assistant, providing sensors for various DNS statistics.
 
+> [!NOTE]
+> **Enjoying this integration?**
+>
+> This is an open-source project I maintain in my spare time. If you'd like to show your appreciation and support its development, you can buy me a coffee!
+>
+> [![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/amateurgod)
+
+
 ## Installation
 
 ### Manual Installation
