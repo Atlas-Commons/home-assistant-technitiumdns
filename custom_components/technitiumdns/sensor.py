@@ -101,7 +101,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
                 device_sensors_created = True
                 _LOGGER.info("Created %d device diagnostic sensors from coordinator data", len(device_sensors))
             else:
-                _LOGGER.warning("DHCP coordinator.data is: %s", dhcp_coordinator.data)
+                _LOGGER.debug("DHCP coordinator has no data yet: %s", dhcp_coordinator.data)
 
             # If no devices in coordinator data yet, rely on dynamic sensor manager
             # to create sensors when devices are discovered
