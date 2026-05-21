@@ -589,8 +589,6 @@ class TechnitiumDHCPDeviceTracker(CoordinatorEntity, ScannerEntity):
         
         # Determine a reasonable model name
         hostname = self._hostname or ""
-        if not isinstance(hostname, str):
-            hostname = "" if hostname is None else str(hostname)
         hostname_lower = hostname.lower()
         if "raspberry" in hostname_lower or "rpi" in hostname_lower:
             model = "Raspberry Pi"
