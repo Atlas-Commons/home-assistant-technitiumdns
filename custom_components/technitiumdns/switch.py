@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from homeassistant.components.switch import SwitchEntity
 from homeassistant.helpers.entity import DeviceInfo
@@ -14,7 +14,7 @@ from .const import AD_BLOCKING_SWITCH, DOMAIN, KEY_BLOCKING_DISABLED_UNTIL
 
 _LOGGER = logging.getLogger(__name__)
 
-BLOCKING_POLL_INTERVAL = 30
+BLOCKING_POLL_INTERVAL = timedelta(seconds=30)
 
 
 async def async_setup_entry(hass, entry, async_add_entities):
