@@ -11,7 +11,6 @@
   "integration_type": "device",
   "iot_class": "local_polling",
   "issue_tracker": "https://github.com/Amateur-God/home-assistant-Technitiumdns/issues",
-  "requirements": ["aiohttp>=3.9.0"],
-  "version": "2.4.0"
-
+  "requirements": ["technitiumdns-api>=0.1.1"],
+  "version": "2.5.0"
 }
