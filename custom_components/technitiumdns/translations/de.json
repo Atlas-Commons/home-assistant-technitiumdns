@@ -1,59 +1,61 @@
 {
-    "config": {
-        "abort": {
-            "already_configured": "Dienst ist bereits konfiguriert",
-            "reauth_successful": "Re-Authentifizierung war erfolgreich"
-        },
-        "error": {
-            "auth": "Ungültige Authentifizierung",
-            "cannot_connect": "Verbindung fehlgeschlagen",
-            "timeout": "Verbindung zur API hat die Zeit überschritten.",
-            "unknown": "Ein unerwarteter Fehler ist aufgetreten."
-        },
-        "step": {
-            "user": {
-                "data": {
-                    "api_url": "URL",
-                    "check_ssl": "SSL überprüfen",
-                    "token": "API-Schlüssel",
-                    "username": "Benutzername",
-                    "server_name": "Servername",
-                    "stats_duration": "Statistikdauer"
-                },
-                "description": "Bitte geben Sie Ihre TechnitiumDNS-API-Informationen ein.",
-                "title": "TechnitiumDNS konfigurieren"
-            }
-        }
+  "config": {
+    "abort": {
+      "already_configured": "Dienst ist bereits konfiguriert",
+      "reauth_successful": "Re-Authentifizierung war erfolgreich"
     },
-    "options": {
-        "step": {
-            "init": {
-                "data": {
-                    "enable_dhcp_tracking": "DHCP-Geräteverfolgung aktivieren",
-                    "dhcp_update_interval": "DHCP-Aktualisierungsintervall (Sekunden)",
-                    "dhcp_ip_filter_mode": "IP-Filter-Modus",
-                    "dhcp_ip_ranges": "IP-Adressen/Bereiche (durch Komma oder Zeilenumbruch getrennt)",
-                    "dhcp_log_tracking": "DNS-Log-Verfolgung aktivieren",
-                    "dhcp_stale_threshold": "Inaktivitätsschwelle (Minuten)",
-                    "dhcp_smart_activity": "Intelligente Aktivitätsanalyse aktivieren",
-                    "activity_score_threshold": "Aktivitätsbewertungsschwelle (Punkte)",
-                    "activity_analysis_window": "Aktivitätsanalysefenster (Minuten)",
-                    "test_dhcp": "DHCP-Verbindung testen"
-                },
-                "description": "Aktivieren Sie die DHCP-Geräteverfolgung, um Geräte zu überwachen, die mit Ihrem Technitium DHCP-Server verbunden sind. Die intelligente Aktivitätsanalyse unterscheidet zwischen echter Benutzeraktivität und automatischem Hintergrundverkehr (NTP, Updates, Telemetrie), um Fehlalarme zu vermeiden.",
-                "title": "TechnitiumDNS-Optionen"
-            },
-            "dhcp_test": {
-                "data": {
-                    "dhcp_test_results": "DHCP-Testergebnisse"
-                },
-                "description": "Ergebnisse des DHCP-Verbindungstests. Dies zeigt alle verfügbaren DHCP-Leases von Ihrem Technitium DNS-Server.",
-                "title": "DHCP-Verbindungstest-Ergebnisse"
-            }
+    "error": {
+      "auth": "Ungültige Authentifizierung",
+      "cannot_connect": "Verbindung fehlgeschlagen",
+      "timeout": "Verbindung zur API hat die Zeit überschritten.",
+      "unknown": "Ein unerwarteter Fehler ist aufgetreten."
+    },
+    "step": {
+      "user": {
+        "data": {
+          "api_url": "URL",
+          "check_ssl": "SSL überprüfen",
+          "token": "API-Schlüssel",
+          "username": "Benutzername",
+          "server_name": "Servername",
+          "stats_duration": "Statistikdauer",
+          "cluster_mode": "Use cluster aggregate statistics"
         },
-        "error": {
-            "dhcp_error": "DHCP-API hat einen Fehler zurückgegeben. Überprüfen Sie Ihre Technitium DNS-Server-Konfiguration.",
-            "dhcp_connection_failed": "Verbindung zur DHCP-API fehlgeschlagen. Überprüfen Sie Ihre Server-URL und den Token."
-        }
+        "description": "Bitte geben Sie Ihre TechnitiumDNS-API-Informationen ein.",
+        "title": "TechnitiumDNS konfigurieren"
+      }
     }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "data": {
+          "enable_dhcp_tracking": "DHCP-Geräteverfolgung aktivieren",
+          "dhcp_update_interval": "DHCP-Aktualisierungsintervall (Sekunden)",
+          "dhcp_ip_filter_mode": "IP-Filter-Modus",
+          "dhcp_ip_ranges": "IP-Adressen/Bereiche (durch Komma oder Zeilenumbruch getrennt)",
+          "dhcp_log_tracking": "DNS-Log-Verfolgung aktivieren",
+          "dhcp_stale_threshold": "Inaktivitätsschwelle (Minuten)",
+          "dhcp_smart_activity": "Intelligente Aktivitätsanalyse aktivieren",
+          "activity_score_threshold": "Aktivitätsbewertungsschwelle (Punkte)",
+          "activity_analysis_window": "Aktivitätsanalysefenster (Minuten)",
+          "test_dhcp": "DHCP-Verbindung testen",
+          "stats_update_interval": "Statistics Update Interval (seconds)"
+        },
+        "description": "Aktivieren Sie die DHCP-Geräteverfolgung, um Geräte zu überwachen, die mit Ihrem Technitium DHCP-Server verbunden sind. Die intelligente Aktivitätsanalyse unterscheidet zwischen echter Benutzeraktivität und automatischem Hintergrundverkehr (NTP, Updates, Telemetrie), um Fehlalarme zu vermeiden.",
+        "title": "TechnitiumDNS-Optionen"
+      },
+      "dhcp_test": {
+        "data": {
+          "dhcp_test_results": "DHCP-Testergebnisse"
+        },
+        "description": "Ergebnisse des DHCP-Verbindungstests. Dies zeigt alle verfügbaren DHCP-Leases von Ihrem Technitium DNS-Server.",
+        "title": "DHCP-Verbindungstest-Ergebnisse"
+      }
+    },
+    "error": {
+      "dhcp_error": "DHCP-API hat einen Fehler zurückgegeben. Überprüfen Sie Ihre Technitium DNS-Server-Konfiguration.",
+      "dhcp_connection_failed": "Verbindung zur DHCP-API fehlgeschlagen. Überprüfen Sie Ihre Server-URL und den Token."
+    }
+  }
 }
