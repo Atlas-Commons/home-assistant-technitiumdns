@@ -1,9 +1,12 @@
-![GitHub branch check runs](https://img.shields.io/github/check-runs/Amateur-God/home-assistant-technitiumdns/main?style=plastic)
-![GitHub commit activity](https://img.shields.io/github/commit-activity/t/Amateur-God/home-assistant-technitiumdns?style=plastic)
-![GitHub Issues or Pull Requests](https://img.shields.io/github/issues/Amateur-God/home-assistant-technitiumdns?style=plastic)
-![GitHub Release](https://img.shields.io/github/v/release/Amateur-God/home-assistant-technitiumdns?display_name=release&style=plastic&label=stable%20Release)
-![GitHub Release](https://img.shields.io/github/v/release/Amateur-God/home-assistant-technitiumdns?include_prereleases&display_name=release&style=plastic&label=Beta%20Release)
+[![CI](https://github.com/Atlas-Commons/home-assistant-technitiumdns/actions/workflows/ci.yml/badge.svg)](https://github.com/Atlas-Commons/home-assistant-technitiumdns/actions/workflows/ci.yml)
+![GitHub branch check runs](https://img.shields.io/github/check-runs/Atlas-Commons/home-assistant-technitiumdns/main?style=plastic)
+![GitHub commit activity](https://img.shields.io/github/commit-activity/t/Atlas-Commons/home-assistant-technitiumdns?style=plastic)
+![GitHub Issues or Pull Requests](https://img.shields.io/github/issues/Atlas-Commons/home-assistant-technitiumdns?style=plastic)
+![GitHub Release](https://img.shields.io/github/v/release/Atlas-Commons/home-assistant-technitiumdns?display_name=release&style=plastic&label=stable%20Release)
+![GitHub Release](https://img.shields.io/github/v/release/Atlas-Commons/home-assistant-technitiumdns?include_prereleases&display_name=release&style=plastic&label=Beta%20Release)
 [![Discord](https://img.shields.io/discord/1032437213100777502)](https://discord.gg/4HcExnCHg2)
+
+Contributions welcome — see [CONTRIBUTING.md](.github/CONTRIBUTING.md). PRs require DCO sign-off (`git commit -s`).
 
 # technitiumDNS Integration for Home Assistant
 
@@ -24,7 +27,7 @@ This custom integration allows you to integrate technitiumDNS with Home Assistan
 1. **Download the repository:**
    - Clone the repository or download the ZIP file.
     ```bash
-    git clone https://github.com/Amateur-God/home-assistant-technitiumdns.git
+    git clone https://github.com/Atlas-Commons/home-assistant-technitiumdns.git
     ```
 2. **Copy to Home Assistant:**
    - Copy the `custom_components` directory into your Home Assistant configuration directory.
@@ -38,7 +41,7 @@ This custom integration allows you to integrate technitiumDNS with Home Assistan
    - Go to HACS in your Home Assistant.
    - Click on "Integrations".
    - Click on the three dots in the upper right corner and select "Custom repositories".
-   - Add the URL to this repository: https://github.com/Amateur-God/home-assistant-technitiumdns and select the category "Integration".
+   - Add the URL to this repository: https://github.com/Atlas-Commons/home-assistant-technitiumdns and select the category "Integration".
 
 2. **Install the Integration:**
    - Find `technitiumDNS` in HACS and click "Install".
@@ -54,7 +57,7 @@ During setup you can configure:
 
 - **API URL** and **token** for your Technitium DNS Server
 - **Verify SSL** — disable for self-signed certificates
-- **Cluster mode** — when enabled, statistics are fetched with `node=cluster` for aggregate cluster stats (see [issue #76](https://github.com/Amateur-God/home-assistant-technitiumdns/issues/76))
+- **Cluster mode** — when enabled, statistics are fetched with `node=cluster` for aggregate cluster stats (see [issue #76](https://github.com/Atlas-Commons/home-assistant-technitiumdns/issues/76))
 - **Statistics duration** — the time window for dashboard stats (`LastHour`, `LastDay`, `LastWeek`, `LastMonth`)
 
 ## Dependencies
