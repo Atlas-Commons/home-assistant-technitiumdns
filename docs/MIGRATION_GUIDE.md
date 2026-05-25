@@ -72,3 +72,38 @@ config_entry = {
 - Users can manually reconfigure if needed
 
 This migration strategy ensures that the addition of DHCP device tracking doesn't break existing installations while making the new functionality easily accessible to users who want it.
+
+## Version 3 -> Version 4 Changes
+
+### What's New in Version 4
+
+- Integration now uses the [`technitiumdns-api`](https://pypi.org/project/technitiumdns-api/) PyPI package instead of a bundled `api.py`
+- **Cluster mode** option (`cluster_mode`, default: `false`) for aggregate cluster statistics
+- Configurable **statistics update interval** via options (`stats_update_interval`, default: 60 seconds)
+- Ad blocking switch reflects temporary disable state from duration buttons
+
+### Migration Process
+
+Existing config entries on version 3 are upgraded automatically:
+
+```python
+# After migration (version 4)
+config_entry = {
+    "version": 4,
+    "data": {
+        "api_url": "http://192.168.1.1:5380",
+        "token": "abc123",
+        "server_name": "My DNS Server",
+        "username": "admin",
+        "stats_duration": "LastDay",
+        "check_ssl": True,
+        "cluster_mode": False,  # new — default off
+    },
+    "options": {
+        "stats_update_interval": 60,  # new — default 60s if not set
+        # ... existing DHCP options ...
+    },
+}
+```
+
+No user action is required. Reload the integration or restart Home Assistant after upgrading.

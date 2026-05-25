@@ -1,7 +1,6 @@
 from datetime import timedelta, datetime
 import logging
 import asyncio
-from aiohttp import ClientError
 
 from homeassistant.components.sensor import SensorEntity, SensorDeviceClass
 from homeassistant.util import dt as dt_util
@@ -12,10 +11,16 @@ from homeassistant.helpers.update_coordinator import (
 )
 from homeassistant.helpers.entity import DeviceInfo, EntityCategory
 from homeassistant.exceptions import ConfigEntryNotReady
+from technitiumdns import TransportError
 
-from .const import DOMAIN, SENSOR_TYPES, DEFAULT_UPDATE_INFO
+from .const import (
+    DOMAIN,
+    SENSOR_TYPES,
+    DEFAULT_UPDATE_INFO,
+    CONF_STATS_UPDATE_INTERVAL,
+    DEFAULT_STATS_UPDATE_INTERVAL,
+)
 from .utils import normalize_mac_address, parse_timestamp
-from .api import TechnitiumDNSApi
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -70,7 +75,12 @@ async def async_setup_entry(hass, entry, async_add_entities):
         stats_duration = config_entry["stats_duration"]
 
         # Create main DNS statistics coordinator and sensors
-        coordinator = TechnitiumDNSCoordinator(hass, api, stats_duration)
+        update_interval = entry.options.get(
+            CONF_STATS_UPDATE_INTERVAL, DEFAULT_STATS_UPDATE_INTERVAL
+        )
+        coordinator = TechnitiumDNSCoordinator(
+            hass, api, stats_duration, update_interval=update_interval
+        )
         await coordinator.async_config_entry_first_refresh()
 
         sensors = [
@@ -146,82 +156,83 @@ async def async_unload_entry(hass, entry):
 class TechnitiumDNSCoordinator(DataUpdateCoordinator):
     """Class to manage fetching TechnitiumDNS data."""
 
-    def __init__(self, hass, api, stats_duration):
+    def __init__(self, hass, api, stats_duration, update_interval=60):
         """Initialize."""
         self.api = api
         self.stats_duration = stats_duration
         self._last_update_check = None
         self._cached_update_info = None
-        super().__init__(hass, _LOGGER, name=DOMAIN, update_interval=SCAN_INTERVAL)
+        super().__init__(
+            hass,
+            _LOGGER,
+            name=DOMAIN,
+            update_interval=timedelta(seconds=update_interval),
+        )
 
     async def _async_update_data(self):
         """Update data via library."""
         try:
             _LOGGER.debug("Fetching data from TechnitiumDNS API")
-            Technitiumdns_statistics = await self.api.get_statistics(self.stats_duration)
+            stats = await self.api.dashboard.stats(type=self.stats_duration, utc=True)
 
-            # Update check
             current_time = dt_util.utcnow()
             should_check_updates = (
-                self._last_update_check is None or
-                current_time - self._last_update_check >= UPDATE_CHECK_INTERVAL
+                self._last_update_check is None
+                or current_time - self._last_update_check >= UPDATE_CHECK_INTERVAL
             )
 
+            update_result = self._cached_update_info
             if should_check_updates:
                 _LOGGER.debug("Checking for updates (hourly check)")
                 try:
-                    Technitiumdns_update_info = await self.api.check_update()
-                    self._cached_update_info = Technitiumdns_update_info
+                    update_result = await self.api.user.check_for_update()
+                    self._cached_update_info = update_result
                     self._last_update_check = current_time
                     _LOGGER.debug("Update check completed, cached for next hour")
-                except (ClientError, asyncio.TimeoutError) as update_err:
+                except (TransportError, asyncio.TimeoutError) as update_err:
                     _LOGGER.warning(
                         "Failed to check for updates: %s, using cached data",
                         update_err,
                     )
-                    # Keep using cached data if update check fails
             else:
                 _LOGGER.debug("Using cached update info")
-                Technitiumdns_update_info = (
-                    self._cached_update_info
-                    or DEFAULT_UPDATE_INFO
-                )
 
-            # Add logging to debug response content
-            # _LOGGER.debug("Technitiumdns_statistics response content: %s", Technitiumdns_statistics)
-            # _LOGGER.debug("Technitiumdns_update_info response content: %s", Technitiumdns_update_info)
+            if update_result is None:
+                update_available = DEFAULT_UPDATE_INFO["response"]["updateAvailable"]
+            else:
+                update_available = update_result.update_available
 
-            Technitiumdns_stats = Technitiumdns_statistics.get("response", {}).get("stats", {})
+            counters = stats.stats
             data = {
-                "queries": Technitiumdns_stats.get("totalQueries", 0),
-                "blocked_queries": Technitiumdns_stats.get("totalBlocked", 0),
-                "clients": Technitiumdns_stats.get("totalClients", 0),
-                "update_available": Technitiumdns_update_info.get("response", {}).get("updateAvailable", False),
-                "no_error": Technitiumdns_stats.get("totalNoError", 0),
-                "server_failure": Technitiumdns_stats.get("totalServerFailure", 0),
-                "nx_domain": Technitiumdns_stats.get("totalNxDomain", 0),
-                "refused": Technitiumdns_stats.get("totalRefused", 0),
-                "authoritative": Technitiumdns_stats.get("totalAuthoritative", 0),
-                "recursive": Technitiumdns_stats.get("totalRecursive", 0),
-                "cached": Technitiumdns_stats.get("totalCached", 0),
-                "dropped": Technitiumdns_stats.get("totalDropped", 0),
-                "zones": Technitiumdns_stats.get("zones", 0),
-                "cached_entries": Technitiumdns_stats.get("cachedEntries", 0),
-                "allowed_zones": Technitiumdns_stats.get("allowedZones", 0),
-                "blocked_zones": Technitiumdns_stats.get("blockedZones", 0),
-                "allow_list_zones": Technitiumdns_stats.get("allowListZones", 0),
-                "block_list_zones": Technitiumdns_stats.get("blockListZones", 0),
+                "queries": counters.total_queries,
+                "blocked_queries": counters.total_blocked,
+                "clients": counters.total_clients,
+                "update_available": update_available,
+                "no_error": counters.total_no_error,
+                "server_failure": counters.total_server_failure,
+                "nx_domain": counters.total_nx_domain,
+                "refused": counters.total_refused,
+                "authoritative": counters.total_authoritative,
+                "recursive": counters.total_recursive,
+                "cached": counters.total_cached,
+                "dropped": counters.total_dropped,
+                "zones": counters.zones,
+                "cached_entries": counters.cached_entries,
+                "allowed_zones": counters.allowed_zones,
+                "blocked_zones": counters.blocked_zones,
+                "allow_list_zones": counters.allow_list_zones,
+                "block_list_zones": counters.block_list_zones,
                 "top_clients": [
-                    {"name": client.get("name", "Unknown"), "hits": client.get("hits", 0)}
-                    for client in Technitiumdns_statistics.get("response", {}).get("topClients", [])[:5]
+                    {"name": client.name or "Unknown", "hits": client.hits}
+                    for client in stats.top_clients[:5]
                 ],
                 "top_domains": [
-                    {"name": domain.get("name", "Unknown"), "hits": domain.get("hits", 0)}
-                    for domain in Technitiumdns_statistics.get("response", {}).get("topDomains", [])[:5]
+                    {"name": domain.name or "Unknown", "hits": domain.hits}
+                    for domain in stats.top_domains[:5]
                 ],
                 "top_blocked_domains": [
-                    {"name": domain.get("name", "Unknown"), "hits": domain.get("hits", 0)}
-                    for domain in Technitiumdns_statistics.get("response", {}).get("topBlockedDomains", [])[:5]
+                    {"name": domain.name or "Unknown", "hits": domain.hits}
+                    for domain in stats.top_blocked_domains[:5]
                 ],
             }
             _LOGGER.debug("Data combined: %s", data)
