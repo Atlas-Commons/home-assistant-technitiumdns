@@ -106,7 +106,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
                 
             _LOGGER.info("Created %d device trackers", len(device_trackers))
         else:
-            _LOGGER.warning("No DHCP lease data available - no device trackers will be created")
+            _LOGGER.info("No DHCP lease data available yet - device trackers will be created when leases are discovered")
         
         _LOGGER.info("Adding %d device tracker entities to Home Assistant", len(device_trackers))
         async_add_entities(device_trackers, True)
@@ -209,6 +209,9 @@ class TechnitiumDHCPCoordinator(DataUpdateCoordinator):
                         # _LOGGER.debug("Including lease with unknown type '%s'", lease_type)
                 
                 if should_include:
+                    hostname = lease.get("hostName", "")
+                    if not isinstance(hostname, str):
+                        hostname = "" if hostname is None else str(hostname)
                     # Apply IP filtering
                     if not should_track_ip(ip_address, self.ip_filter_mode, self.ip_ranges):
                         filtered_count += 1
@@ -436,6 +439,8 @@ class TechnitiumDHCPDeviceTracker(CoordinatorEntity, ScannerEntity):
         self._entry_id = entry_id
         self._mac_address = lease_data.get("mac_address", "")
         self._hostname = lease_data.get("hostname", "")
+        if not isinstance(self._hostname, str):
+            self._hostname = "" if self._hostname is None else str(self._hostname)
         
         # Debug MAC address handling
         _LOGGER.debug("Device tracker init: MAC='%s', Hostname='%s'", self._mac_address, self._hostname)
@@ -592,15 +597,16 @@ class TechnitiumDHCPDeviceTracker(CoordinatorEntity, ScannerEntity):
         
         # Determine a reasonable model name
         hostname = self._hostname or ""
-        if "raspberry" in hostname.lower() or "rpi" in hostname.lower():
+        hostname_lower = hostname.lower()
+        if "raspberry" in hostname_lower or "rpi" in hostname_lower:
             model = "Raspberry Pi"
-        elif "iphone" in hostname.lower() or "ipad" in hostname.lower():
+        elif "iphone" in hostname_lower or "ipad" in hostname_lower:
             model = "iOS Device"
-        elif "android" in hostname.lower():
+        elif "android" in hostname_lower:
             model = "Android Device"
-        elif "windows" in hostname.lower() or "pc" in hostname.lower():
+        elif "windows" in hostname_lower or "pc" in hostname_lower:
             model = "Windows PC"
-        elif "mac" in hostname.lower():
+        elif "mac" in hostname_lower:
             model = "Mac Computer"
         else:
             model = "Network Device"
