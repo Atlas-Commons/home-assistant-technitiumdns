@@ -1,29 +1,39 @@
-# Contributing
+# Contributing to Atlas Commons
 
-When contributing to this repository, please first discuss the change you wish
-to make via issue, email, or any other method with the owners of this repository
-before making a change.
+Thank you for contributing to [Atlas Commons](https://github.com/Atlas-Commons) open-source projects.
 
-Please note we have a code of conduct, please follow it in all your interactions
-with the project.
+## Before you start
 
-## Issues and feature requests
+1. Search [existing issues](https://github.com/Atlas-Commons) for duplicates.
+2. For large changes, open an issue first to discuss approach.
+3. Read our [Code of Conduct](CODE_OF_CONDUCT.md).
 
-You've found a bug in the source code, a mistake in the documentation or maybe
-you'd like a new feature? You can help us by submitting an issue to our
-[GitHub Repository][github]. Before you create an issue, make sure you search
-the archive, maybe your question was already answered.
+## Developer Certificate of Origin (DCO)
 
-Even better: You could submit a pull request with a fix / new feature!
+**Every commit in a pull request must be signed off.**
+
+Use `-s` when committing:
+
+```bash
+git commit -s -m "Describe your change"
+```
+
+This adds a `Signed-off-by:` line certifying you wrote the code or have the right to submit it under the project license. See [developercertificate.org](https://developercertificate.org/).
+
+The [DCO GitHub App](https://github.com/apps/dco) blocks merges when sign-off is missing.
 
 ## Pull request process
 
-1. Search our repository for open or closed [pull requests][prs] that relates
-   to your submission. You don't want to duplicate effort.
+1. Fork the repository and create a branch from `main`.
+2. Make focused changes with tests where applicable.
+3. Ensure CI passes locally before opening the PR.
+4. Open a pull request against `main` with a clear description.
+5. Address review feedback; maintainers will merge when checks are green.
 
-1. You may merge the pull request in once you have the sign-off of two other
-   developers, or if you do not have permission to do that, you may request
-   the second reviewer to merge it for you.
+## Local development
 
-[github]: https://github.com/Amateur-God/Hassio-Addons/issues
-[prs]: https://github.com/Amateur-God/Hassio-Addons/pulls
+See each repository's `README.md` for setup instructions. Most projects document install, test, and lint commands there.
+
+## Questions
+
+Open a [GitHub Discussion](https://github.com/orgs/Atlas-Commons/discussions) or issue in the relevant repository.

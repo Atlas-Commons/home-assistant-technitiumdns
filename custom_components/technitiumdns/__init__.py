@@ -19,7 +19,8 @@ from .const import (
 )
 from .config_flow import CONFIG_VERSION
 from .utils import normalize_mac_address
-from .api import TechnitiumDNSApi
+from .client import create_api_client
+from .const import KEY_BLOCKING_DISABLED_UNTIL
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -127,6 +128,15 @@ async def async_migrate_entry(hass: HomeAssistant, config_entry: ConfigEntry) ->
         hass.config_entries.async_update_entry(config_entry, version=3)
         _LOGGER.info("Successfully migrated config entry to version 3.")
 
+    # --- Migration from version 3 to 4 ---
+    if config_entry.version == 3:
+        new_data = {**config_entry.data}
+        new_data.setdefault("cluster_mode", False)
+        hass.config_entries.async_update_entry(
+            config_entry, data=new_data, version=4
+        )
+        _LOGGER.info("Successfully migrated config entry to version 4.")
+
     return True
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -137,7 +147,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     _LOGGER.info("Setting up TechnitiumDNS integration for entry %s", entry.entry_id)
     hass.data.setdefault(DOMAIN, {})
 
-    api = TechnitiumDNSApi(entry.data["api_url"], entry.data.get("check_ssl", True), entry.data["token"])
+    api = await create_api_client(
+        hass,
+        api_url=entry.data["api_url"],
+        token=entry.data["token"],
+        check_ssl=entry.data.get("check_ssl", True),
+        cluster_mode=entry.data.get("cluster_mode", False),
+    )
 
     # Determine which platforms to load based on options
     platforms = ["button", "switch"]
@@ -161,7 +177,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         "api": api,
         "server_name": entry.data["server_name"],
         "stats_duration": entry.data["stats_duration"],
-        "loaded_platforms": platforms,  # Track which platforms were actually loaded
+        "loaded_platforms": platforms,
+        KEY_BLOCKING_DISABLED_UNTIL: None,
     }
 
     device_registry = dr.async_get(hass)
@@ -324,38 +341,38 @@ async def async_register_services(hass: HomeAssistant):
         _LOGGER.debug("API instance found, making DHCP leases request")
 
         try:
-            # Fetch DHCP leases
-            leases_data = await api.get_dhcp_leases()
-            _LOGGER.debug("DHCP API response received: %s",
-                        f"leases_data present: {leases_data is not None}, "
-                        f"type: {type(leases_data)}, "
-                        f"keys: {list(leases_data.keys()) if isinstance(leases_data, dict) else 'N/A'}")
+            leases_data = await api.dhcp.leases_list()
+            _LOGGER.debug(
+                "DHCP API response received: leases_count=%d",
+                len(leases_data) if leases_data else 0,
+            )
 
             if not leases_data:
-                _LOGGER.warning("No DHCP leases data returned from API (None or empty)")
+                _LOGGER.warning("No DHCP leases data returned from API")
                 return
 
-            if not isinstance(leases_data, dict):
-                _LOGGER.warning("DHCP leases data is not a dictionary: %s", type(leases_data))
-                return
-
-            # Check for different possible response structures
-            leases = None
-            if "leases" in leases_data:
-                leases = leases_data["leases"]
-                _LOGGER.debug("Found 'leases' key with %d items", len(leases) if isinstance(leases, list) else 0)
-            elif "response" in leases_data and isinstance(leases_data["response"], dict):
-                if "leases" in leases_data["response"]:
-                    leases = leases_data["response"]["leases"]
-                    _LOGGER.debug("Found 'response.leases' key with %d items", len(leases) if isinstance(leases, list) else 0)
-                else:
-                    _LOGGER.debug("Response structure: %s", list(leases_data["response"].keys()))
-
-            if leases is None:
-                _LOGGER.warning("No 'leases' key found in API response. Available keys: %s",
-                              list(leases_data.keys()))
-                _LOGGER.debug("Full API response: %s", leases_data)
-                return
+            leases = [
+                {
+                    "address": lease.address,
+                    "hardwareAddress": lease.hardware_address,
+                    "hostName": lease.host_name,
+                    "clientIdentifier": lease.client_identifier,
+                    "addressStatus": lease.address_status,
+                    "scope": lease.scope,
+                    "type": lease.type,
+                    "leaseObtained": (
+                        lease.lease_obtained.isoformat()
+                        if lease.lease_obtained
+                        else None
+                    ),
+                    "leaseExpires": (
+                        lease.lease_expires.isoformat()
+                        if lease.lease_expires
+                        else None
+                    ),
+                }
+                for lease in leases_data
+            ]
             original_count = len(leases)
             _LOGGER.debug("Retrieved %d total leases from API", original_count)
 

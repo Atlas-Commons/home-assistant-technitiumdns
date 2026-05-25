@@ -30,7 +30,11 @@ from .const import (
     DEFAULT_ACTIVITY_SCORE_THRESHOLD,
     DEFAULT_ACTIVITY_ANALYSIS_WINDOW,
 )
-from .api import TechnitiumDNSApi
+from .dns_logs import (
+    get_dns_logs_for_analysis,
+    get_last_seen_for_multiple_ips,
+    test_dns_logs_api,
+)
 from .utils import should_track_ip, normalize_mac_address
 from .activity_analyzer import SmartActivityAnalyzer, analyze_batch_device_activity
 
@@ -154,17 +158,9 @@ class TechnitiumDHCPCoordinator(DataUpdateCoordinator):
         """Update data via library."""
         _LOGGER.info("Starting DHCP data update cycle")
         try:
-            _LOGGER.debug("Fetching DHCP leases from TechnitiumDNS API using %s", self.api)
-            dhcp_response = await self.api.get_dhcp_leases()
-            
-            _LOGGER.debug("DHCP leases response status: %s", dhcp_response.get("status"))
-            # _LOGGER.debug("Raw DHCP leases response: %s", dhcp_response)
-            
-            if dhcp_response.get("status") != "ok":
-                _LOGGER.error("DHCP API returned error status: %s", dhcp_response.get("status"))
-                raise UpdateFailed(f"DHCP API error: {dhcp_response.get('status')}")
-            
-            leases = dhcp_response.get("response", {}).get("leases", [])
+            _LOGGER.debug("Fetching DHCP leases from TechnitiumDNS API")
+            leases = await self.api.dhcp.leases_list()
+
             _LOGGER.info("Retrieved %d total DHCP leases from API", len(leases))
             
             # Log summary of lease types found
@@ -182,9 +178,9 @@ class TechnitiumDHCPCoordinator(DataUpdateCoordinator):
             skipped_count = 0
             
             for i, lease in enumerate(leases):
-                lease_type = lease.get("type")
-                ip_address = lease.get("address")
-                mac_address = lease.get("hardwareAddress", "")
+                lease_type = lease.type
+                ip_address = lease.address
+                mac_address = lease.hardware_address or ""
                 _LOGGER.debug("Processing lease %d: type=%s, address=%s, mac=%s", i+1, lease_type, ip_address, mac_address)
                 
                 # Filter leases based on the official Technitium DNS API specification
@@ -225,11 +221,19 @@ class TechnitiumDHCPCoordinator(DataUpdateCoordinator):
                     processed_lease = {
                         "ip_address": ip_address,
                         "mac_address": normalize_mac_address(mac_address),
-                        "hostname": hostname,
-                        "client_id": lease.get("clientIdentifier", ""),
-                        "lease_expires": lease.get("leaseExpires"),
-                        "lease_obtained": lease.get("leaseObtained"),
-                        "scope": lease.get("scope", ""),
+                        "hostname": lease.host_name or "",
+                        "client_id": lease.client_identifier or "",
+                        "lease_expires": (
+                            lease.lease_expires.isoformat()
+                            if lease.lease_expires
+                            else None
+                        ),
+                        "lease_obtained": (
+                            lease.lease_obtained.isoformat()
+                            if lease.lease_obtained
+                            else None
+                        ),
+                        "scope": lease.scope or "",
                         "type": lease_type,
                         "last_seen": None,  # Will be populated by DNS log query
                         "is_stale": False,  # Will be calculated based on last_seen or activity score
@@ -304,7 +308,7 @@ class TechnitiumDHCPCoordinator(DataUpdateCoordinator):
         
         try:
             # First, test if DNS logs API is working at all
-            api_test = await self.api.test_dns_logs_api()
+            api_test = await test_dns_logs_api(self.api)
             _LOGGER.debug("DNS logs API test result: %s", api_test)
             
             if not api_test.get("available"):
@@ -320,7 +324,9 @@ class TechnitiumDHCPCoordinator(DataUpdateCoordinator):
                 # Get comprehensive DNS logs for activity analysis
                 # Use a longer window to capture more activity (at least 4 hours)
                 analysis_window_hours = max(4, self.activity_analyzer.analysis_window_minutes / 60)
-                dns_logs = await self.api.get_dns_logs_for_analysis(hours_back=analysis_window_hours)
+                dns_logs = await get_dns_logs_for_analysis(
+                    self.api, hours_back=analysis_window_hours
+                )
                 
                 if dns_logs:
                     # Perform batch activity analysis
@@ -380,7 +386,9 @@ class TechnitiumDHCPCoordinator(DataUpdateCoordinator):
         
         # Single batch call to get last seen times for all devices
         # Start with a shorter time window (6 hours) for better performance
-        last_seen_times = await self.api.get_last_seen_for_multiple_ips(ip_addresses, hours_back=6)
+        last_seen_times = await get_last_seen_for_multiple_ips(
+            self.api, ip_addresses, hours_back=6
+        )
         
         # Update all leases with the results
         for ip_address, lease in ip_to_lease_map.items():
