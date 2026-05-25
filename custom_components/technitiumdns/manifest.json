@@ -2,16 +2,15 @@
   "domain": "technitiumdns",
   "name": "TechnitiumDNS",
   "codeowners": [
-    "@Amateur-God",
+    "@Atlas-Commons",
     "@tamaygz"
   ],
   "config_flow": true,
   "dependencies": [],
-  "documentation": "https://github.com/Amateur-God/home-assistant-technitiumdns",
+  "documentation": "https://github.com/Atlas-Commons/home-assistant-technitiumdns",
   "integration_type": "device",
   "iot_class": "local_polling",
-  "issue_tracker": "https://github.com/Amateur-God/home-assistant-Technitiumdns/issues",
-  "requirements": ["aiohttp>=3.9.0"],
-  "version": "2.4.0"
-
+  "issue_tracker": "https://github.com/Atlas-Commons/home-assistant-Technitiumdns/issues",
+  "requirements": ["technitiumdns-api>=0.1.1"],
+  "version": "2.5.0"
 }
