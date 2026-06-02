@@ -22,7 +22,24 @@
           "cluster_mode": "Use cluster aggregate statistics"
         },
         "description": "Please enter your TechnitiumDNS API information.",
-        "title": "Configure TechnitiumDNS"
+        "title": "Configure TechnitiumDNS",
+        "data_description": {
+          "api_url": "e.g. http://my-dns.example.com:5380",
+          "server_name": "Short display label for this server — used in entity and device names, not the API hostname",
+          "username": "Technitium DNS web UI username",
+          "token": "API token from the Technitium DNS web console",
+          "stats_duration": "Time window for dashboard statistics"
+        }
+      }
+    }
+  },
+  "selector": {
+    "stats_duration": {
+      "options": {
+        "LastHour": "Last hour",
+        "LastDay": "Last day",
+        "LastWeek": "Last week",
+        "LastMonth": "Last month"
       }
     }
   },

@@ -9,6 +9,7 @@ from technitiumdns import InvalidTokenError, TransportError
 
 from homeassistant import config_entries
 from homeassistant.core import callback
+from homeassistant.helpers import selector
 
 from .client import create_api_client
 from .const import (
@@ -77,14 +78,39 @@ class TechnitiumDNSConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         data_schema = vol.Schema(
             {
-                vol.Required("api_url"): str,
-                vol.Required("check_ssl", default=True): bool,
-                vol.Optional("cluster_mode", default=False): bool,
-                vol.Required("token"): str,
-                vol.Required("server_name"): str,
-                vol.Required("username"): str,
-                vol.Required("stats_duration"): vol.In(
-                    ["LastHour", "LastDay", "LastWeek", "LastMonth"]
+                vol.Required("api_url"): selector.TextSelector(
+                    selector.TextSelectorConfig(
+                        type=selector.TextSelectorType.URL,
+                        placeholder="http://my-dns.example.com:5380",
+                    )
+                ),
+                vol.Required("check_ssl", default=True): selector.BooleanSelector(),
+                vol.Optional("cluster_mode", default=False): selector.BooleanSelector(),
+                vol.Required("token"): selector.TextSelector(
+                    selector.TextSelectorConfig(
+                        type=selector.TextSelectorType.PASSWORD,
+                    )
+                ),
+                vol.Required("server_name"): selector.TextSelector(
+                    selector.TextSelectorConfig(
+                        placeholder="Home DNS",
+                    )
+                ),
+                vol.Required("username"): selector.TextSelector(
+                    selector.TextSelectorConfig(
+                        placeholder="admin",
+                    )
+                ),
+                vol.Required("stats_duration"): selector.SelectSelector(
+                    selector.SelectSelectorConfig(
+                        options=[
+                            "LastHour",
+                            "LastDay",
+                            "LastWeek",
+                            "LastMonth",
+                        ],
+                        translation_key="stats_duration",
+                    )
                 ),
             }
         )

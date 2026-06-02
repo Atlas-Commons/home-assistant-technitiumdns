@@ -5,9 +5,8 @@ from __future__ import annotations
 import logging
 
 from homeassistant.components.button import ButtonEntity
-from homeassistant.helpers.entity import DeviceInfo
-
 from .const import AD_BLOCKING_DURATION_OPTIONS, DOMAIN, KEY_BLOCKING_DISABLED_UNTIL
+from .utils import server_device_info
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -42,6 +41,8 @@ async def async_setup_entry(hass, entry, async_add_entities):
 class TechnitiumDNSButton(ButtonEntity):
     """Representation of a TechnitiumDNS button."""
 
+    _attr_has_entity_name = True
+
     def __init__(
         self,
         api,
@@ -55,7 +56,8 @@ class TechnitiumDNSButton(ButtonEntity):
         self._api = api
         self._hass = hass
         self._entry_id = entry_id
-        self._attr_name = f"{name} ({server_name})"
+        self._server_name = server_name
+        self._attr_name = name
         self._duration = duration
         self._attr_unique_id = f"{entry_id}_{duration}"
 
@@ -87,20 +89,18 @@ class TechnitiumDNSButton(ButtonEntity):
     @property
     def device_info(self):
         """Return device information for this entity."""
-        return DeviceInfo(
-            identifiers={(DOMAIN, self._entry_id)},
-            name=self._attr_name,
-            manufacturer="Technitium",
-            model="DNS Server",
-        )
+        return server_device_info(self._entry_id, self._server_name)
 
 
 class TechnitiumDNSCleanupButton(ButtonEntity):
     """Button to cleanup orphaned DHCP device entities."""
 
+    _attr_has_entity_name = True
+
     def __init__(self, server_name: str, entry_id: str, hass):
         """Initialize the cleanup button."""
-        self._attr_name = f"Cleanup Devices ({server_name})"
+        self._server_name = server_name
+        self._attr_name = "Cleanup Devices"
         self._entry_id = entry_id
         self._hass = hass
         self._attr_unique_id = f"{entry_id}_cleanup_devices"
@@ -121,8 +121,4 @@ class TechnitiumDNSCleanupButton(ButtonEntity):
     @property
     def device_info(self):
         """Return device information for this entity."""
-        return DeviceInfo(
-            identifiers={(DOMAIN, self._entry_id)},
-            manufacturer="Technitium",
-            model="DNS Server",
-        )
+        return server_device_info(self._entry_id, self._server_name)

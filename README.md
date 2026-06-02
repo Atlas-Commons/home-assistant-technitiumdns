@@ -53,9 +53,40 @@ This custom integration allows you to integrate technitiumDNS with Home Assistan
    - Click on the "+" button to add a new integration.
    - Search for `technitiumDNS` and follow the configuration steps.
 
+### API user and permissions
+
+Create a **dedicated** Technitium user for Home Assistant (do not reuse the `admin` account). After setting permissions, sign in as that user and create a non-expiring **API token** (user menu → Create API Token). The token inherits the user’s permissions.
+
+Technitium returns *access denied* when the token lacks permission for an API call. Core DNS statistics may still update while other features log errors (for example the ad-blocking switch polls settings every 30 seconds).
+
+Grant permissions under **Administration → Users** (per-user) or **Administration → Groups** (recommended). Each section uses **View**, **Modify**, and **Delete**; this integration only needs the levels below.
+
+| Technitium section | View | Modify | Used for |
+| --- | --- | --- | --- |
+| **Dashboard** | Yes | No | DNS statistics sensors (required for all setups) |
+| **Settings** | Yes | Yes* | Ad-blocking switch and temporary-disable buttons |
+| **DhcpServer** | Yes | No | DHCP device trackers and `get_dhcp_leases` service |
+| **Logs** | Yes | No | DNS query logs (last seen, smart activity analysis) |
+| **Apps** | Yes† | No | Discovering installed DNS apps with query logging |
+
+\* **Modify** is only required if you use ad-blocking controls. **View** alone is enough to read blocking state without changing it.
+
+† **Apps → View** is used to find query-logging DNS apps. The [Technitium API](https://github.com/TechnitiumSoftware/DnsServer/blob/master/APIDOCS.md) also allows **Zones → View** or **Logs → View** for `api/apps/list`; granting **Logs → View** covers both app discovery and log queries.
+
+**Not required** for this integration: Zones, Cache, Allowed, Blocked, DnsClient, or Administration (unless you manage users in Technitium).
+
+**Minimal examples**
+
+- Statistics only: **Dashboard → View**
+- Statistics + read-only blocking state: **Dashboard → View**, **Settings → View**
+- Full integration (stats, DHCP tracking, ad blocking, activity analysis): **Dashboard**, **Settings** (View + Modify), **DhcpServer**, **Logs**, and **Apps** — all **View** where applicable, plus **Settings → Modify** for blocking controls
+
+Assigning the user to the built-in **Administrators** group works but is broader than necessary. Prefer a custom group with only the permissions above.
+
 During setup you can configure:
 
-- **API URL** and **token** for your Technitium DNS Server
+- **API URL** and **token** for your Technitium DNS Server (e.g. `http://my-dns.example.com:5380`)
+- **Server Name** — a short display label used for device and entity names in Home Assistant. This is **not** the API hostname; keep it brief (e.g. `Home DNS`, `Cluster`) to avoid long entity IDs
 - **Verify SSL** — disable for self-signed certificates
 - **Cluster mode** — when enabled, statistics are fetched with `node=cluster` for aggregate cluster stats (see [issue #76](https://github.com/Atlas-Commons/home-assistant-technitiumdns/issues/76))
 - **Statistics duration** — the time window for dashboard stats (`LastHour`, `LastDay`, `LastWeek`, `LastMonth`)

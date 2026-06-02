@@ -12,7 +12,14 @@
           "stats_duration": "Statistics Duration"
         },
         "description": "Please enter your TechnitiumDNS API information.",
-        "title": "Configure TechnitiumDNS"
+        "title": "Configure TechnitiumDNS",
+        "data_description": {
+          "api_url": "e.g. http://my-dns.example.com:5380",
+          "server_name": "Short display label for this server — used in entity and device names, not the API hostname",
+          "username": "Technitium DNS web UI username",
+          "token": "API token from the Technitium DNS web console",
+          "stats_duration": "Time window for dashboard statistics"
+        }
       }
     },
     "error": {
@@ -24,6 +31,16 @@
     "abort": {
       "already_configured": "[%key:common::config_flow::abort::already_configured_service%]",
       "reauth_successful": "[%key:common::config_flow::abort::reauth_successful%]"
+    }
+  },
+  "selector": {
+    "stats_duration": {
+      "options": {
+        "LastHour": "Last hour",
+        "LastDay": "Last day",
+        "LastWeek": "Last week",
+        "LastMonth": "Last month"
+      }
     }
   },
   "options": {

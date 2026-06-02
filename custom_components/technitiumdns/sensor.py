@@ -20,7 +20,7 @@ from .const import (
     CONF_STATS_UPDATE_INTERVAL,
     DEFAULT_STATS_UPDATE_INTERVAL,
 )
-from .utils import normalize_mac_address, parse_timestamp
+from .utils import normalize_mac_address, parse_timestamp, server_device_info
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -244,19 +244,16 @@ class TechnitiumDNSCoordinator(DataUpdateCoordinator):
 class TechnitiumDNSSensor(CoordinatorEntity, SensorEntity):
     """Representation of a TechnitiumDNS sensor."""
 
+    _attr_has_entity_name = True
+
     def __init__(self, coordinator, sensor_type, server_name, entry_id):
         """Initialize the sensor."""
         super().__init__(coordinator)
         self._sensor_type = sensor_type
         self._server_name = server_name
         self._entry_id = entry_id
-        self._name = f"Technitiumdns_{SENSOR_TYPES[sensor_type]['name']} ({server_name})"
+        self._attr_name = SENSOR_TYPES[sensor_type]["name"]
         self._state_class = SENSOR_TYPES[sensor_type].get('state_class', 'measurement')
-
-    @property
-    def name(self):
-        """Return the name of the sensor."""
-        return self._name
 
     @property
     def state_class(self):
@@ -325,12 +322,7 @@ class TechnitiumDNSSensor(CoordinatorEntity, SensorEntity):
     @property
     def device_info(self):
         """Return device information for this entity."""
-        return DeviceInfo(
-            identifiers={(DOMAIN, self._entry_id)},
-            name=self._server_name,
-            manufacturer="Technitium",
-            model="DNS Server",
-        )
+        return server_device_info(self._entry_id, self._server_name)
 
 # Diagnostic sensor base class for DHCP devices
 class TechnitiumDHCPDeviceDiagnosticSensor(CoordinatorEntity, SensorEntity):
