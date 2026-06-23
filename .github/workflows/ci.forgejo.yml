@@ -32,11 +32,30 @@ jobs:
   hassfest:
     name: Hassfest validation
     if: contains(github.server_url, 'git.atlastechsolutions.co.uk')
-    runs-on: ubuntu-latest
+    runs-on: docker
+    env:
+      DOCKER_HOST: tcp://dind:2375
     steps:
       - uses: https://github.com/actions/checkout@v4
         with:
           token: ${{ secrets.FORGEJO_TOKEN }}
+      - name: Setup Docker
+        run: |
+          set -euo pipefail
+          if ! command -v docker >/dev/null 2>&1; then
+            export DEBIAN_FRONTEND=noninteractive
+            apt-get update -qq
+            apt-get install -y -qq docker.io
+          fi
+          if ! docker info >/dev/null 2>&1; then
+            GW="$(ip route show default 2>/dev/null | awk '/default/ {print $3; exit}')"
+            if [[ -n "${GW:-}" ]] && ! grep -qE '[[:space:]]dind$' /etc/hosts 2>/dev/null; then
+              echo "${GW} dind" >> /etc/hosts
+            fi
+            echo "DOCKER_HOST=tcp://dind:2375" >> "$GITHUB_ENV"
+            export DOCKER_HOST=tcp://dind:2375
+          fi
+          docker info
       - uses: https://github.com/home-assistant/actions/hassfest@master
 
   dco:
