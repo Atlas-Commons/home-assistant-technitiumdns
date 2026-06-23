@@ -31,10 +31,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Hassfest
-        run: |
-          python3 -m pip install --quiet homeassistant
-          python3 -m script.hassfest
+      - uses: https://github.com/home-assistant/actions/hassfest@master
 
   dco:
     name: DCO sign-off
