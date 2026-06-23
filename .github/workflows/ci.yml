@@ -31,8 +31,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Hassfest (docker)
-        run: docker run --rm -v "$PWD:/github/workspace" ghcr.io/home-assistant/hassfest
+      - name: Hassfest
+        run: |
+          python3 -m pip install --quiet homeassistant
+          python3 -m script.hassfest
 
   dco:
     name: DCO sign-off
