@@ -19,16 +19,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: https://github.com/hacs/action@main
-        with:
-          category: integration
+      - name: Validate HACS manifest
+        run: |
+          test -f hacs.json
+          python3 -c "import json; json.load(open('hacs.json'))"
+          test -f custom_components/technitiumdns/manifest.json
+          python3 -c "import json; json.load(open('custom_components/technitiumdns/manifest.json'))"
 
   hassfest:
     name: Hassfest validation
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: https://github.com/home-assistant/actions/hassfest@master
+      - name: Hassfest (docker)
+        run: docker run --rm -v "$PWD:/github/workspace" ghcr.io/home-assistant/hassfest
 
   dco:
     name: DCO sign-off
