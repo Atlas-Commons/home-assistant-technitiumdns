@@ -9,10 +9,11 @@ on:
 
 jobs:
   validate-hacs:
+    if: contains(github.server_url, 'github.com')
     runs-on: "ubuntu-latest"
     steps:
       - uses: "actions/checkout@v3"
       - name: HACS validation
-        uses: "hacs/action@main"
+        uses: "https://github.com/hacs/action@main"
         with:
           category: "integration"
