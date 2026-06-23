@@ -18,7 +18,9 @@ jobs:
     name: HACS validation
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: https://github.com/actions/checkout@v4
+        with:
+          token: ${{ secrets.FORGEJO_TOKEN }}
       - name: Validate HACS manifest
         run: |
           test -f hacs.json
@@ -30,7 +32,9 @@ jobs:
     name: Hassfest validation
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: https://github.com/actions/checkout@v4
+        with:
+          token: ${{ secrets.FORGEJO_TOKEN }}
       - name: Hassfest
         run: |
           set -euo pipefail
@@ -47,9 +51,10 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
     steps:
-      - uses: actions/checkout@v4
+      - uses: https://github.com/actions/checkout@v4
         with:
           fetch-depth: 0
+          token: ${{ secrets.FORGEJO_TOKEN }}
       - run: bash .github/scripts/verify-dco.sh
 
   required:
