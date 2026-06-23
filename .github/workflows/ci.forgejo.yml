@@ -33,8 +33,6 @@ jobs:
     name: Hassfest validation
     if: contains(github.server_url, 'git.atlastechsolutions.co.uk')
     runs-on: docker
-    env:
-      DOCKER_HOST: tcp://dind:2375
     steps:
       - uses: https://github.com/actions/checkout@v4
         with:
@@ -48,15 +46,22 @@ jobs:
             apt-get install -y -qq docker.io
           fi
           if ! docker info >/dev/null 2>&1; then
-            GW="$(ip route show default 2>/dev/null | awk '/default/ {print $3; exit}')"
-            if [[ -n "${GW:-}" ]] && ! grep -qE '[[:space:]]dind$' /etc/hosts 2>/dev/null; then
-              echo "${GW} dind" >> /etc/hosts
-            fi
-            echo "DOCKER_HOST=tcp://dind:2375" >> "$GITHUB_ENV"
-            export DOCKER_HOST=tcp://dind:2375
+            for host in dind.docker.internal dind; do
+              GW="$(ip route show default 2>/dev/null | awk '/default/ {print $3; exit}')"
+              if [[ -n "${GW:-}" ]] && ! grep -qE "[[:space:]]${host}$" /etc/hosts 2>/dev/null; then
+                echo "${GW} ${host}" >> /etc/hosts
+              fi
+            done
+            echo "DOCKER_HOST=tcp://dind.docker.internal:2375" >> "$GITHUB_ENV"
+            export DOCKER_HOST=tcp://dind.docker.internal:2375
           fi
           docker info
-      - uses: https://github.com/home-assistant/actions/hassfest@master
+      - name: Run hassfest
+        run: |
+          set -euo pipefail
+          tar czf - -C "$GITHUB_WORKSPACE" . | docker run -i --rm \
+            ghcr.io/home-assistant/hassfest:latest \
+            sh -c 'mkdir -p /github/workspace && tar xzf - -C /github/workspace && cd /github/workspace && hassfest'
 
   dco:
     name: DCO sign-off
