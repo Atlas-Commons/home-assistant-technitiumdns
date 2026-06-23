@@ -60,8 +60,10 @@ jobs:
         run: |
           set -euo pipefail
           tar czf - -C "$GITHUB_WORKSPACE" . | docker run -i --rm \
+            -e GITHUB_WORKSPACE=/github/workspace \
+            --entrypoint sh \
             ghcr.io/home-assistant/hassfest:latest \
-            sh -c 'mkdir -p /github/workspace && tar xzf - -C /github/workspace && cd /github/workspace && hassfest'
+            -c 'mkdir -p /github/workspace && tar xzf - -C /github/workspace && cd /github/workspace && hassfest'
 
   dco:
     name: DCO sign-off
