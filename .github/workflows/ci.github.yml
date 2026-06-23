@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-github-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate-hacs:
+    name: HACS validation
+    if: contains(github.server_url, 'github.com')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hacs/action@main
+        with:
+          category: integration
+
+  hassfest:
+    name: Hassfest validation
+    if: contains(github.server_url, 'github.com')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: home-assistant/actions/hassfest@master
+
+  dco:
+    name: DCO sign-off
+    if: contains(github.server_url, 'github.com') && github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - run: bash .github/scripts/verify-dco.sh
+
+  required:
+    name: Required checks
+    if: always() && contains(github.server_url, 'github.com')
+    runs-on: ubuntu-latest
+    needs: [validate-hacs, hassfest, dco]
+    steps:
+      - run: |
+          if [[ "${{ needs.validate-hacs.result }}" != "success" ]]; then exit 1; fi
+          if [[ "${{ needs.hassfest.result }}" != "success" ]]; then exit 1; fi
+          if [[ "${{ github.event_name }}" == "pull_request" && "${{ needs.dco.result }}" != "success" ]]; then exit 1; fi
+          echo "All required CI checks passed."
