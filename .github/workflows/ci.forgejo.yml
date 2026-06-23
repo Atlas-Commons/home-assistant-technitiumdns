@@ -37,16 +37,7 @@ jobs:
       - uses: https://github.com/actions/checkout@v4
         with:
           token: ${{ secrets.FORGEJO_TOKEN }}
-      - name: Hassfest
-        run: |
-          set -euo pipefail
-          if command -v sudo >/dev/null 2>&1; then SUDO=sudo; else SUDO=""; fi
-          export DEBIAN_FRONTEND=noninteractive
-          $SUDO apt-get update -qq
-          $SUDO apt-get install -y -qq python3-venv
-          python3 -m venv .venv
-          .venv/bin/pip install --quiet homeassistant
-          .venv/bin/python -m script.hassfest
+      - uses: https://github.com/home-assistant/actions/hassfest@master
 
   dco:
     name: DCO sign-off
