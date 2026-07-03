@@ -5,9 +5,22 @@ import logging
 from datetime import datetime
 from typing import List, Set
 
+from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.util import dt as dt_util
 
+from .const import DOMAIN
+
 _LOGGER = logging.getLogger(__name__)
+
+
+def server_device_info(entry_id: str, server_name: str) -> DeviceInfo:
+    """Return device info for a Technitium DNS server config entry."""
+    return DeviceInfo(
+        identifiers={(DOMAIN, entry_id)},
+        name=server_name,
+        manufacturer="Technitium",
+        model="DNS Server",
+    )
 
 
 def normalize_mac_address(mac_address: str) -> str:

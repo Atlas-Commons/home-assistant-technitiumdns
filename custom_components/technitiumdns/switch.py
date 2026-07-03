@@ -6,11 +6,11 @@ import logging
 from datetime import datetime, timedelta
 
 from homeassistant.components.switch import SwitchEntity
-from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.util import dt as dt_util
 
 from .const import AD_BLOCKING_SWITCH, DOMAIN, KEY_BLOCKING_DISABLED_UNTIL
+from .utils import server_device_info
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -32,12 +32,15 @@ async def async_setup_entry(hass, entry, async_add_entities):
 class TechnitiumDNSSwitch(SwitchEntity):
     """Representation of a TechnitiumDNS switch."""
 
+    _attr_has_entity_name = True
+
     def __init__(self, api, name: str, server_name: str, entry_id: str, hass):
         """Initialize the switch."""
         self._api = api
         self._hass = hass
         self._entry_id = entry_id
-        self._attr_name = f"{name} ({server_name})"
+        self._server_name = server_name
+        self._attr_name = name
         self._is_on = False
         self._temporary_disable_until: datetime | None = None
         self._attr_unique_id = f"{entry_id}_{name}"
@@ -159,9 +162,4 @@ class TechnitiumDNSSwitch(SwitchEntity):
     @property
     def device_info(self):
         """Return device information for this entity."""
-        return DeviceInfo(
-            identifiers={(DOMAIN, self._entry_id)},
-            name=self._attr_name,
-            manufacturer="Technitium",
-            model="DNS Server",
-        )
+        return server_device_info(self._entry_id, self._server_name)

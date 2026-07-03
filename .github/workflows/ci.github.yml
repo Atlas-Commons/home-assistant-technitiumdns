@@ -1,4 +1,4 @@
-name: CI
+name: CI (GitHub)
 
 on:
   push:
@@ -10,12 +10,13 @@ permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
+  group: ci-github-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   validate-hacs:
     name: HACS validation
+    if: contains(github.server_url, 'github.com')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -25,6 +26,7 @@ jobs:
 
   hassfest:
     name: Hassfest validation
+    if: contains(github.server_url, 'github.com')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -32,8 +34,8 @@ jobs:
 
   dco:
     name: DCO sign-off
+    if: contains(github.server_url, 'github.com') && github.event_name == 'pull_request'
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
     steps:
       - uses: actions/checkout@v4
         with:
@@ -42,9 +44,9 @@ jobs:
 
   required:
     name: Required checks
+    if: always() && contains(github.server_url, 'github.com')
     runs-on: ubuntu-latest
     needs: [validate-hacs, hassfest, dco]
-    if: always()
     steps:
       - run: |
           if [[ "${{ needs.validate-hacs.result }}" != "success" ]]; then exit 1; fi
