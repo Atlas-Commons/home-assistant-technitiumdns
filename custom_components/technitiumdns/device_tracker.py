@@ -7,7 +7,7 @@ and are automatically linked to the device through proper device grouping.
 from datetime import timedelta, datetime
 import logging
 
-from homeassistant.components.device_tracker.config_entry import ScannerEntity
+from homeassistant.components.device_tracker import ScannerEntity
 from homeassistant.components.device_tracker.const import SourceType
 from homeassistant.helpers.update_coordinator import (
     DataUpdateCoordinator,
@@ -167,7 +167,7 @@ class TechnitiumDHCPCoordinator(DataUpdateCoordinator):
             if leases:
                 types_found = set()
                 for lease in leases:
-                    lease_type = lease.get("type")
+                    lease_type = lease.type
                     if lease_type:
                         types_found.add(lease_type)
                 _LOGGER.info("Lease types found: %s", sorted(types_found))
@@ -209,7 +209,7 @@ class TechnitiumDHCPCoordinator(DataUpdateCoordinator):
                         # _LOGGER.debug("Including lease with unknown type '%s'", lease_type)
                 
                 if should_include:
-                    hostname = lease.get("hostName", "")
+                    hostname = lease.host_name or ""
                     if not isinstance(hostname, str):
                         hostname = "" if hostname is None else str(hostname)
                     # Apply IP filtering
