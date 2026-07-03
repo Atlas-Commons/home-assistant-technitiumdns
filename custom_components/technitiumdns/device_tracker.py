@@ -221,7 +221,7 @@ class TechnitiumDHCPCoordinator(DataUpdateCoordinator):
                     processed_lease = {
                         "ip_address": ip_address,
                         "mac_address": normalize_mac_address(mac_address),
-                        "hostname": lease.host_name or "",
+                        "hostname": hostname,
                         "client_id": lease.client_identifier or "",
                         "lease_expires": (
                             lease.lease_expires.isoformat()
