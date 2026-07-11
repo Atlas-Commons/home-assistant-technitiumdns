@@ -2,7 +2,7 @@
   "domain": "technitiumdns",
   "name": "TechnitiumDNS",
   "codeowners": [
-    "@Atlas-Commons",
+    "@Amateur-God",
     "@tamaygz"
   ],
   "config_flow": true,
