@@ -396,11 +396,10 @@ class TechnitiumDHCPDeviceDiagnosticSensor(CoordinatorEntity, SensorEntity):
 
         # Try to get hostname from device data for better model detection
         device_data = self._get_device_data()
+        # Normalize hostname to ensure it's always a string
         hostname = ""
         if device_data:
-            hostname = device_data.get("hostname", "")
-        if not isinstance(hostname, str):
-            hostname = "" if hostname is None else str(hostname)
+            hostname = normalize_hostname(device_data.get("hostname", ""))
         hostname_lower = hostname.lower()
 
         # Determine a reasonable model name
