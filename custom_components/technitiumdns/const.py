@@ -3,7 +3,7 @@
 
 DOMAIN = "technitiumdns"
 
-DURATION_OPTIONS = ["LastHour", "LastDay", "LastWeek", "LastMonth"]
+DURATION_OPTIONS = ["last_hour", "last_day", "last_week", "last_month"]
 
 # Statistics sensor refresh interval (seconds)
 CONF_STATS_UPDATE_INTERVAL = "stats_update_interval"
