@@ -35,7 +35,7 @@ from .dns_logs import (
     get_last_seen_for_multiple_ips,
     test_dns_logs_api,
 )
-from .utils import should_track_ip, normalize_mac_address
+from .utils import should_track_ip, normalize_mac_address, normalize_hostname
 from .activity_analyzer import SmartActivityAnalyzer, analyze_batch_device_activity
 
 # Import cleanup functionality
@@ -209,9 +209,8 @@ class TechnitiumDHCPCoordinator(DataUpdateCoordinator):
                         # _LOGGER.debug("Including lease with unknown type '%s'", lease_type)
                 
                 if should_include:
-                    hostname = lease.host_name or ""
-                    if not isinstance(hostname, str):
-                        hostname = "" if hostname is None else str(hostname)
+                    # Normalize hostname to ensure it's always a string
+                    hostname = normalize_hostname(lease.host_name)
                     # Apply IP filtering
                     if not should_track_ip(ip_address, self.ip_filter_mode, self.ip_ranges):
                         filtered_count += 1
@@ -438,9 +437,8 @@ class TechnitiumDHCPDeviceTracker(CoordinatorEntity, ScannerEntity):
         self._server_name = server_name
         self._entry_id = entry_id
         self._mac_address = lease_data.get("mac_address", "")
-        self._hostname = lease_data.get("hostname", "")
-        if not isinstance(self._hostname, str):
-            self._hostname = "" if self._hostname is None else str(self._hostname)
+        # Normalize hostname to ensure it's always a string
+        self._hostname = normalize_hostname(lease_data.get("hostname", ""))
         
         # Debug MAC address handling
         _LOGGER.debug("Device tracker init: MAC='%s', Hostname='%s'", self._mac_address, self._hostname)

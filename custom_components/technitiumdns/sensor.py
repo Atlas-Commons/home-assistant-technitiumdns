@@ -20,7 +20,7 @@ from .const import (
     CONF_STATS_UPDATE_INTERVAL,
     DEFAULT_STATS_UPDATE_INTERVAL,
 )
-from .utils import normalize_mac_address, parse_timestamp, server_device_info
+from .utils import normalize_mac_address, parse_timestamp, server_device_info, normalize_hostname
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -33,7 +33,8 @@ async def _create_device_sensors(leases, dhcp_coordinator, server_name, entry_id
 
     for lease in leases:
         mac_address = lease.get("mac_address", "")
-        hostname = lease.get("hostname", "")
+        # Normalize hostname to ensure it's always a string
+        hostname = normalize_hostname(lease.get("hostname", ""))
         ip_address = lease.get("ip_address", "")
 
         # Create a device name consistent with device tracker
@@ -556,8 +557,11 @@ class TechnitiumDHCPDeviceHostnameSensor(TechnitiumDHCPDeviceDiagnosticSensor):
     def native_value(self):
         """Return the hostname."""
         device_data = self._get_device_data()
-        hostname = device_data.get("hostname") if device_data else None
-        return hostname if hostname else "Unknown"
+        if device_data:
+            # Normalize hostname to ensure it's always a string
+            hostname = normalize_hostname(device_data.get("hostname"))
+            return hostname if hostname else "Unknown"
+        return "Unknown"
 
     @property
     def icon(self):
