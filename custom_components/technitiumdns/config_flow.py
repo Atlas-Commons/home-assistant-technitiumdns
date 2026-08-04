@@ -104,10 +104,10 @@ class TechnitiumDNSConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 vol.Required("stats_duration"): selector.SelectSelector(
                     selector.SelectSelectorConfig(
                         options=[
-                            "LastHour",
-                            "LastDay",
-                            "LastWeek",
-                            "LastMonth",
+                            "last_hour",
+                            "last_day",
+                            "last_week",
+                            "last_month",
                         ],
                         translation_key="stats_duration",
                     )
