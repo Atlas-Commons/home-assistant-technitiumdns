@@ -20,7 +20,7 @@ from .const import (
     CONF_STATS_UPDATE_INTERVAL,
     DEFAULT_STATS_UPDATE_INTERVAL,
 )
-from .utils import normalize_mac_address, parse_timestamp
+from .utils import normalize_mac_address, parse_timestamp, server_device_info, normalize_hostname
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -33,7 +33,8 @@ async def _create_device_sensors(leases, dhcp_coordinator, server_name, entry_id
 
     for lease in leases:
         mac_address = lease.get("mac_address", "")
-        hostname = lease.get("hostname", "")
+        # Normalize hostname to ensure it's always a string
+        hostname = normalize_hostname(lease.get("hostname", ""))
         ip_address = lease.get("ip_address", "")
 
         # Create a device name consistent with device tracker
@@ -244,19 +245,16 @@ class TechnitiumDNSCoordinator(DataUpdateCoordinator):
 class TechnitiumDNSSensor(CoordinatorEntity, SensorEntity):
     """Representation of a TechnitiumDNS sensor."""
 
+    _attr_has_entity_name = True
+
     def __init__(self, coordinator, sensor_type, server_name, entry_id):
         """Initialize the sensor."""
         super().__init__(coordinator)
         self._sensor_type = sensor_type
         self._server_name = server_name
         self._entry_id = entry_id
-        self._name = f"Technitiumdns_{SENSOR_TYPES[sensor_type]['name']} ({server_name})"
+        self._attr_name = SENSOR_TYPES[sensor_type]["name"]
         self._state_class = SENSOR_TYPES[sensor_type].get('state_class', 'measurement')
-
-    @property
-    def name(self):
-        """Return the name of the sensor."""
-        return self._name
 
     @property
     def state_class(self):
@@ -325,12 +323,7 @@ class TechnitiumDNSSensor(CoordinatorEntity, SensorEntity):
     @property
     def device_info(self):
         """Return device information for this entity."""
-        return DeviceInfo(
-            identifiers={(DOMAIN, self._entry_id)},
-            name=self._server_name,
-            manufacturer="Technitium",
-            model="DNS Server",
-        )
+        return server_device_info(self._entry_id, self._server_name)
 
 # Diagnostic sensor base class for DHCP devices
 class TechnitiumDHCPDeviceDiagnosticSensor(CoordinatorEntity, SensorEntity):
@@ -403,11 +396,10 @@ class TechnitiumDHCPDeviceDiagnosticSensor(CoordinatorEntity, SensorEntity):
 
         # Try to get hostname from device data for better model detection
         device_data = self._get_device_data()
+        # Normalize hostname to ensure it's always a string
         hostname = ""
         if device_data:
-            hostname = device_data.get("hostname", "")
-        if not isinstance(hostname, str):
-            hostname = "" if hostname is None else str(hostname)
+            hostname = normalize_hostname(device_data.get("hostname", ""))
         hostname_lower = hostname.lower()
 
         # Determine a reasonable model name
@@ -564,8 +556,11 @@ class TechnitiumDHCPDeviceHostnameSensor(TechnitiumDHCPDeviceDiagnosticSensor):
     def native_value(self):
         """Return the hostname."""
         device_data = self._get_device_data()
-        hostname = device_data.get("hostname") if device_data else None
-        return hostname if hostname else "Unknown"
+        if device_data:
+            # Normalize hostname to ensure it's always a string
+            hostname = normalize_hostname(device_data.get("hostname"))
+            return hostname if hostname else "Unknown"
+        return "Unknown"
 
     @property
     def icon(self):

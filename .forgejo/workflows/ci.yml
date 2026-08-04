@@ -1,0 +1,88 @@
+name: CI (Forgejo)
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-forgejo-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate-hacs:
+    name: HACS validation
+    if: contains(github.server_url, 'git.atlastechsolutions.co.uk')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: https://github.com/actions/checkout@v4
+        with:
+          token: ${{ secrets.FORGEJO_TOKEN }}
+      - name: Validate HACS manifest
+        run: |
+          test -f hacs.json
+          python3 -c "import json; json.load(open('hacs.json'))"
+          test -f custom_components/technitiumdns/manifest.json
+          python3 -c "import json; json.load(open('custom_components/technitiumdns/manifest.json'))"
+
+  hassfest:
+    name: Hassfest validation
+    if: contains(github.server_url, 'git.atlastechsolutions.co.uk')
+    runs-on: docker
+    steps:
+      - uses: https://github.com/actions/checkout@v4
+        with:
+          token: ${{ secrets.FORGEJO_TOKEN }}
+      - name: Setup Docker
+        run: |
+          set -euo pipefail
+          if ! command -v docker >/dev/null 2>&1; then
+            export DEBIAN_FRONTEND=noninteractive
+            apt-get update -qq
+            apt-get install -y -qq docker.io
+          fi
+          if ! docker info >/dev/null 2>&1; then
+            for host in dind.docker.internal dind; do
+              GW="$(ip route show default 2>/dev/null | awk '/default/ {print $3; exit}')"
+              if [[ -n "${GW:-}" ]] && ! grep -qE "[[:space:]]${host}$" /etc/hosts 2>/dev/null; then
+                echo "${GW} ${host}" >> /etc/hosts
+              fi
+            done
+            echo "DOCKER_HOST=tcp://dind.docker.internal:2375" >> "$GITHUB_ENV"
+            export DOCKER_HOST=tcp://dind.docker.internal:2375
+          fi
+          docker info
+      - name: Run hassfest
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            -v "${GITHUB_WORKSPACE}:/github/workspace" \
+            -w /github/workspace \
+            ghcr.io/home-assistant/hassfest:latest
+
+  dco:
+    name: DCO sign-off
+    if: contains(github.server_url, 'git.atlastechsolutions.co.uk') && github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: https://github.com/actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.FORGEJO_TOKEN }}
+      - run: bash .github/scripts/verify-dco.sh
+
+  required:
+    name: Required checks
+    if: always() && contains(github.server_url, 'git.atlastechsolutions.co.uk')
+    runs-on: ubuntu-latest
+    needs: [validate-hacs, hassfest, dco]
+    steps:
+      - run: |
+          if [[ "${{ needs.validate-hacs.result }}" != "success" ]]; then exit 1; fi
+          if [[ "${{ needs.hassfest.result }}" != "success" ]]; then exit 1; fi
+          if [[ "${{ github.event_name }}" == "pull_request" && "${{ needs.dco.result }}" != "success" ]]; then exit 1; fi
+          echo "All required CI checks passed."
