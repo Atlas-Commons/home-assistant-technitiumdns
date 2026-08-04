@@ -36,10 +36,10 @@
   "selector": {
     "stats_duration": {
       "options": {
-        "LastHour": "Last hour",
-        "LastDay": "Last day",
-        "LastWeek": "Last week",
-        "LastMonth": "Last month"
+        "last_hour": "Last hour",
+        "last_day": "Last day",
+        "last_week": "Last week",
+        "last_month": "Last month"
       }
     }
   },
