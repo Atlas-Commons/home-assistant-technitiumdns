@@ -1,51 +1,41 @@
 # TechnitiumDNS Integration Documentation
 
-This directory contains detailed documentation for the TechnitiumDNS Home Assistant integration.
+This directory contains the current technical and feature documentation for the TechnitiumDNS Home Assistant integration.
 
 ## 📋 Documentation Index
 
-### Implementation Guides
-- **[DHCP_IMPLEMENTATION.md](DHCP_IMPLEMENTATION.md)** - Complete guide to DHCP device tracking implementation
-- **[ENTITY_CLEANUP.md](ENTITY_CLEANUP.md)** - Entity cleanup system for managing orphaned devices
-- **[FINAL_IMPLEMENTATION_SUMMARY.md](FINAL_IMPLEMENTATION_SUMMARY.md)** - Technical architecture overview
+### Core Feature Documentation
 
-### Feature Documentation
-- **[SMART_ACTIVITY_SOLUTION.md](SMART_ACTIVITY_SOLUTION.md)** - Smart Activity Analysis system for accurate device tracking
-- **[SERVICE_IMPLEMENTATION.md](SERVICE_IMPLEMENTATION.md)** - Available Home Assistant services and API access
-- **[SERVICE_TROUBLESHOOTING.md](SERVICE_TROUBLESHOOTING.md)** - Troubleshooting guide for service issues
+- **[DHCP_IMPLEMENTATION.md](DHCP_IMPLEMENTATION.md)** — DHCP device tracking implementation, configuration options, device discovery, and API endpoints
+- **[ENTITY_CLEANUP.md](ENTITY_CLEANUP.md)** — Automatic entity cleanup system for managing orphaned devices and configuration changes
+- **[SMART_ACTIVITY_SOLUTION.md](SMART_ACTIVITY_SOLUTION.md)** — Smart Activity Analyzer system for distinguishing genuine user activity from background traffic
+- **[SERVICE_IMPLEMENTATION.md](SERVICE_IMPLEMENTATION.md)** — Available Home Assistant services and programmatic API access
 
-### Enhancement Summaries
-- **[DEBUG_LOGGING_ENHANCEMENT.md](DEBUG_LOGGING_ENHANCEMENT.md)** - Comprehensive debug logging improvements
-- **[SERVICE_ADDITION_SUMMARY.md](SERVICE_ADDITION_SUMMARY.md)** - Summary of new Home Assistant services
-- **[TROUBLESHOOTING_ENHANCEMENT_SUMMARY.md](TROUBLESHOOTING_ENHANCEMENT_SUMMARY.md)** - Troubleshooting documentation improvements
-- **[MAC_ADDRESS_FIX_SUMMARY.md](MAC_ADDRESS_FIX_SUMMARY.md)** - MAC address normalization fix for cleanup service
+### User Guides
 
-### Migration & Updates
-- **[MIGRATION_GUIDE.md](MIGRATION_GUIDE.md)** - Guide for migrating from older versions
+- **[MIGRATION_GUIDE.md](MIGRATION_GUIDE.md)** — Version migration guide (v1 → v2) and config entry compatibility
 
 ## 🚀 Quick Start
 
-For new users, start with the main [README.md](../README.md) in the root directory, then refer to:
+**For new users:**
+1. Start with the main [README.md](../README.md) for installation and basic configuration
+2. Read [DHCP_IMPLEMENTATION.md](DHCP_IMPLEMENTATION.md) to enable DHCP device tracking
+3. Consult [SMART_ACTIVITY_SOLUTION.md](SMART_ACTIVITY_SOLUTION.md) to understand device activity filtering
 
-1. [DHCP_IMPLEMENTATION.md](DHCP_IMPLEMENTATION.md) for device tracking setup
-2. [SMART_ACTIVITY_SOLUTION.md](SMART_ACTIVITY_SOLUTION.md) for understanding smart activity features
-3. [ENTITY_CLEANUP.md](ENTITY_CLEANUP.md) for managing device entities
+**For configuration issues:**
+- [ENTITY_CLEANUP.md](ENTITY_CLEANUP.md) — Managing orphaned devices and cleanup
+- [DHCP_IMPLEMENTATION.md](DHCP_IMPLEMENTATION.md) — Configuration options and filtering
 
-## 🔧 Development
+**For integrating with Home Assistant automations:**
+- [SERVICE_IMPLEMENTATION.md](SERVICE_IMPLEMENTATION.md) — Available services and event data structure
 
-For developers working on the integration:
+## 🔧 For Developers
 
-1. [FINAL_IMPLEMENTATION_SUMMARY.md](FINAL_IMPLEMENTATION_SUMMARY.md) - Technical architecture overview
-2. [DHCP_IMPLEMENTATION.md](DHCP_IMPLEMENTATION.md) - Implementation details
-
-## 🐛 Troubleshooting
-
-If you encounter problems:
-
-1. Review the main [README.md](../README.md) for configuration guidance
-2. Consult [ENTITY_CLEANUP.md](ENTITY_CLEANUP.md) for entity management issues
-3. Check [SMART_ACTIVITY_SOLUTION.md](SMART_ACTIVITY_SOLUTION.md) for activity analysis tuning
+- [DHCP_IMPLEMENTATION.md](DHCP_IMPLEMENTATION.md) — Technical implementation details and API integration patterns
+- [ENTITY_CLEANUP.md](ENTITY_CLEANUP.md) — Entity lifecycle management and cleanup logic
+- [SMART_ACTIVITY_SOLUTION.md](SMART_ACTIVITY_SOLUTION.md) — Activity scoring algorithm and background traffic detection
+- [SERVICE_IMPLEMENTATION.md](SERVICE_IMPLEMENTATION.md) — Service handlers and event structure
 
 ## 📖 Main Documentation
 
-The primary documentation is in [README.md](../README.md) in the root directory.
+The primary documentation is [README.md](../README.md) in the root directory.
