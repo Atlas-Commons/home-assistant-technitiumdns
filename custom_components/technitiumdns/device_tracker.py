@@ -7,7 +7,7 @@ and are automatically linked to the device through proper device grouping.
 from datetime import timedelta, datetime
 import logging
 
-from homeassistant.components.device_tracker.config_entry import ScannerEntity
+from homeassistant.components.device_tracker import ScannerEntity
 from homeassistant.components.device_tracker.const import SourceType
 from homeassistant.helpers.update_coordinator import (
     DataUpdateCoordinator,
@@ -35,7 +35,7 @@ from .dns_logs import (
     get_last_seen_for_multiple_ips,
     test_dns_logs_api,
 )
-from .utils import should_track_ip, normalize_mac_address
+from .utils import should_track_ip, normalize_mac_address, normalize_hostname
 from .activity_analyzer import SmartActivityAnalyzer, analyze_batch_device_activity
 
 # Import cleanup functionality
@@ -106,13 +106,14 @@ async def async_setup_entry(hass, entry, async_add_entities):
                 
             _LOGGER.info("Created %d device trackers", len(device_trackers))
         else:
-            _LOGGER.warning("No DHCP lease data available - no device trackers will be created")
+            _LOGGER.info("""No DHCP lease data available yet 
+                         - device trackers will be created when leases are discovered""")
         
         _LOGGER.info("Adding %d device tracker entities to Home Assistant", len(device_trackers))
         async_add_entities(device_trackers, True)
-        
+
         _LOGGER.info("TechnitiumDNS DHCP device tracker setup completed successfully: %d device trackers", len(device_trackers))
-        
+
     except Exception as e:
         _LOGGER.error("Could not initialize TechnitiumDNS DHCP tracking: %s", e, exc_info=True)
         raise ConfigEntryNotReady from e
@@ -167,7 +168,7 @@ class TechnitiumDHCPCoordinator(DataUpdateCoordinator):
             if leases:
                 types_found = set()
                 for lease in leases:
-                    lease_type = lease.get("type")
+                    lease_type = lease.type
                     if lease_type:
                         types_found.add(lease_type)
                 _LOGGER.info("Lease types found: %s", sorted(types_found))
@@ -209,28 +210,26 @@ class TechnitiumDHCPCoordinator(DataUpdateCoordinator):
                         # _LOGGER.debug("Including lease with unknown type '%s'", lease_type)
                 
                 if should_include:
+                    # Normalize hostname to ensure it's always a string
+                    hostname = normalize_hostname(lease.host_name)
                     # Apply IP filtering
                     if not should_track_ip(ip_address, self.ip_filter_mode, self.ip_ranges):
                         filtered_count += 1
                         # _LOGGER.debug("Filtering out IP %s based on filter mode %s", ip_address, self.ip_filter_mode)
                         continue
                     
+                    # Get datetime fields and convert to ISO format strings for sensors
+                    lease_expires = getattr(lease, "lease_expires", None)
+                    lease_obtained = getattr(lease, "lease_obtained", None)
+                    
                     processed_lease = {
                         "ip_address": ip_address,
                         "mac_address": normalize_mac_address(mac_address),
-                        "hostname": lease.host_name or "",
-                        "client_id": lease.client_identifier or "",
-                        "lease_expires": (
-                            lease.lease_expires.isoformat()
-                            if lease.lease_expires
-                            else None
-                        ),
-                        "lease_obtained": (
-                            lease.lease_obtained.isoformat()
-                            if lease.lease_obtained
-                            else None
-                        ),
-                        "scope": lease.scope or "",
+                        "hostname": hostname,
+                        "client_id": getattr(lease, "client_identifier", "") or "",
+                        "lease_expires": lease_expires.isoformat() if lease_expires else None,
+                        "lease_obtained": lease_obtained.isoformat() if lease_obtained else None,
+                        "scope": getattr(lease, "scope", "") or "",
                         "type": lease_type,
                         "last_seen": None,  # Will be populated by DNS log query
                         "is_stale": False,  # Will be calculated based on last_seen or activity score
@@ -435,7 +434,8 @@ class TechnitiumDHCPDeviceTracker(CoordinatorEntity, ScannerEntity):
         self._server_name = server_name
         self._entry_id = entry_id
         self._mac_address = lease_data.get("mac_address", "")
-        self._hostname = lease_data.get("hostname", "")
+        # Normalize hostname to ensure it's always a string
+        self._hostname = normalize_hostname(lease_data.get("hostname", ""))
         
         # Debug MAC address handling
         _LOGGER.debug("Device tracker init: MAC='%s', Hostname='%s'", self._mac_address, self._hostname)
@@ -592,15 +592,16 @@ class TechnitiumDHCPDeviceTracker(CoordinatorEntity, ScannerEntity):
         
         # Determine a reasonable model name
         hostname = self._hostname or ""
-        if "raspberry" in hostname.lower() or "rpi" in hostname.lower():
+        hostname_lower = hostname.lower()
+        if "raspberry" in hostname_lower or "rpi" in hostname_lower:
             model = "Raspberry Pi"
-        elif "iphone" in hostname.lower() or "ipad" in hostname.lower():
+        elif "iphone" in hostname_lower or "ipad" in hostname_lower:
             model = "iOS Device"
-        elif "android" in hostname.lower():
+        elif "android" in hostname_lower:
             model = "Android Device"
-        elif "windows" in hostname.lower() or "pc" in hostname.lower():
+        elif "windows" in hostname_lower or "pc" in hostname_lower:
             model = "Windows PC"
-        elif "mac" in hostname.lower():
+        elif "mac" in hostname_lower:
             model = "Mac Computer"
         else:
             model = "Network Device"

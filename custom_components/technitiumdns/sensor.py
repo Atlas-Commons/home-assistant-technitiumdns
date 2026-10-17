@@ -20,7 +20,7 @@ from .const import (
     CONF_STATS_UPDATE_INTERVAL,
     DEFAULT_STATS_UPDATE_INTERVAL,
 )
-from .utils import normalize_mac_address, parse_timestamp, server_device_info
+from .utils import normalize_mac_address, parse_timestamp, server_device_info, normalize_hostname
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -33,7 +33,8 @@ async def _create_device_sensors(leases, dhcp_coordinator, server_name, entry_id
 
     for lease in leases:
         mac_address = lease.get("mac_address", "")
-        hostname = lease.get("hostname", "")
+        # Normalize hostname to ensure it's always a string
+        hostname = normalize_hostname(lease.get("hostname", ""))
         ip_address = lease.get("ip_address", "")
 
         # Create a device name consistent with device tracker
@@ -111,7 +112,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
                 device_sensors_created = True
                 _LOGGER.info("Created %d device diagnostic sensors from coordinator data", len(device_sensors))
             else:
-                _LOGGER.warning("DHCP coordinator.data is: %s", dhcp_coordinator.data)
+                _LOGGER.debug("DHCP coordinator has no data yet: %s", dhcp_coordinator.data)
 
             # If no devices in coordinator data yet, rely on dynamic sensor manager
             # to create sensors when devices are discovered
@@ -395,20 +396,22 @@ class TechnitiumDHCPDeviceDiagnosticSensor(CoordinatorEntity, SensorEntity):
 
         # Try to get hostname from device data for better model detection
         device_data = self._get_device_data()
+        # Normalize hostname to ensure it's always a string
         hostname = ""
         if device_data:
-            hostname = device_data.get("hostname", "")
+            hostname = normalize_hostname(device_data.get("hostname", ""))
+        hostname_lower = hostname.lower()
 
         # Determine a reasonable model name
-        if "raspberry" in hostname.lower() or "rpi" in hostname.lower():
+        if "raspberry" in hostname_lower or "rpi" in hostname_lower:
             model = "Raspberry Pi"
-        elif "iphone" in hostname.lower() or "ipad" in hostname.lower():
+        elif "iphone" in hostname_lower or "ipad" in hostname_lower:
             model = "iOS Device"
-        elif "android" in hostname.lower():
+        elif "android" in hostname_lower:
             model = "Android Device"
-        elif "windows" in hostname.lower() or "pc" in hostname.lower():
+        elif "windows" in hostname_lower or "pc" in hostname_lower:
             model = "Windows PC"
-        elif "mac" in hostname.lower():
+        elif "mac" in hostname_lower:
             model = "Mac Computer"
         else:
             model = "Network Device"
@@ -553,8 +556,11 @@ class TechnitiumDHCPDeviceHostnameSensor(TechnitiumDHCPDeviceDiagnosticSensor):
     def native_value(self):
         """Return the hostname."""
         device_data = self._get_device_data()
-        hostname = device_data.get("hostname") if device_data else None
-        return hostname if hostname else "Unknown"
+        if device_data:
+            # Normalize hostname to ensure it's always a string
+            hostname = normalize_hostname(device_data.get("hostname"))
+            return hostname if hostname else "Unknown"
+        return "Unknown"
 
     @property
     def icon(self):
@@ -985,11 +991,14 @@ class DynamicSensorManager:
             await self._create_sensors_for_devices(new_devices)
         else:
             _LOGGER.debug("Dynamic sensor manager: No new devices found in coordinator update")
-            await self._create_sensors_for_devices(new_devices)
 
     async def _create_sensors_for_devices(self, devices):
         """Create diagnostic sensors for a list of new devices."""
         try:
+            if not devices:
+                _LOGGER.debug("Dynamic sensor manager: No devices provided for sensor creation")
+                return
+
             new_sensors = await _create_device_sensors(devices, self.dhcp_coordinator, self.server_name, self.entry.entry_id)
 
             if new_sensors:

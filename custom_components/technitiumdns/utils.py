@@ -50,6 +50,34 @@ def normalize_mac_address(mac_address: str) -> str:
         return mac_upper  # Keep as-is if unexpected format
 
 
+def normalize_hostname(hostname) -> str:
+    """Normalize hostname to a safe string value.
+    
+    Ensures hostname is always a string, handling None and non-string types.
+    Logs a warning when unexpected types (dict, list, etc.) are encountered.
+    
+    Args:
+        hostname: Hostname value from API (may be str, None, or unexpected type)
+        
+    Returns:
+        Empty string if None, string representation otherwise
+    """
+    if hostname is None:
+        return ""
+
+    if isinstance(hostname, str):
+        return hostname
+
+    # Unexpected type - log warning and convert to string
+    hostname_type = type(hostname).__name__
+    _LOGGER.warning(
+        "Unexpected hostname type '%s' (value: %s). Converting to string. "
+        "This may indicate an API format change.",
+        hostname_type,
+        repr(hostname)[:100]  # Limit to 100 chars to avoid log spam
+    )
+    return str(hostname)
+
 def parse_ip_ranges(ip_ranges_str: str) -> Set[str]:
     """
     Parse IP ranges string into a set of IP addresses.
@@ -67,10 +95,10 @@ def parse_ip_ranges(ip_ranges_str: str) -> Set[str]:
         Set of individual IP addresses as strings
     """
     ip_set = set()
-    
+
     if not ip_ranges_str or not ip_ranges_str.strip():
         return ip_set
-    
+
     # Split by various delimiters
     ranges = []
     for delimiter in [',', ';', '\n']:
@@ -79,26 +107,26 @@ def parse_ip_ranges(ip_ranges_str: str) -> Set[str]:
             break
     else:
         ranges = [ip_ranges_str.strip()]
-    
+
     for range_entry in ranges:
         range_entry = range_entry.strip()
         if not range_entry:
             continue
-            
+
         try:
             if '-' in range_entry and '/' not in range_entry:
                 # Handle IP ranges like 192.168.1.1-192.168.1.50
                 start_ip, end_ip = range_entry.split('-', 1)
                 start_ip = start_ip.strip()
                 end_ip = end_ip.strip()
-                
+
                 start_addr = ipaddress.IPv4Address(start_ip)
                 end_addr = ipaddress.IPv4Address(end_ip)
-                
+
                 if start_addr > end_addr:
                     _LOGGER.warning("Invalid IP range %s: start IP is greater than end IP", range_entry)
                     continue
-                
+
                 # Add all IPs in the range
                 current = start_addr
                 while current <= end_addr:
