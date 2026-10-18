@@ -107,12 +107,13 @@ async def async_setup_entry(hass, entry, async_add_entities):
             if dhcp_coordinator.data:
                 _LOGGER.info("DHCP coordinator has %d devices, creating diagnostic sensors", len(dhcp_coordinator.data))
                 _LOGGER.debug("DHCP coordinator device MACs: %s", [lease.get("mac_address") for lease in dhcp_coordinator.data])
-                device_sensors = await _create_device_sensors(
+                 device_sensors = await _create_device_sensors(
                     dhcp_coordinator.data,
                     dhcp_coordinator,
                     server_name,
                     entry.entry_id,
-                )                sensors.extend(device_sensors)
+                )
+                sensors.extend(device_sensors)
                 device_sensors_created = True
                 _LOGGER.info("Created %d device diagnostic sensors from coordinator data", len(device_sensors))
             else:
@@ -1005,11 +1006,11 @@ class DynamicSensorManager:
                 return
 
             new_sensors = await _create_device_sensors(
-            devices,
-            self.dhcp_coordinator,
-            self.server_name,
-            self.entry.entry_id,
-)
+                devices,
+                self.dhcp_coordinator,
+                self.server_name,
+                self.entry.entry_id,
+            )
 
             if new_sensors:
                 _LOGGER.info("Dynamic sensor manager: Adding %d new sensors to Home Assistant", len(new_sensors))
