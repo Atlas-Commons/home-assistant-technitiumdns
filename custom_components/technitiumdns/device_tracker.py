@@ -55,6 +55,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
         config_entry = hass.data[DOMAIN][entry.entry_id]
         api = config_entry["api"]
         server_name = config_entry["server_name"]
+        server_device_id = config_entry["server_device_id"]
         
         _LOGGER.debug("Retrieved config entry data: api=%s, server_name=%s", api, server_name)
         
@@ -101,7 +102,9 @@ async def async_setup_entry(hass, entry, async_add_entities):
                 _LOGGER.debug("Creating device tracker %d for lease: %s", i+1, lease)
                 
                 # Create device tracker
-                device_tracker = TechnitiumDHCPDeviceTracker(coordinator, lease, server_name, entry.entry_id)
+                device_tracker = TechnitiumDHCPDeviceTracker(
+                    coordinator, lease, server_name, entry.entry_id, server_device_id
+                )
                 device_trackers.append(device_tracker)
                 
             _LOGGER.info("Created %d device trackers", len(device_trackers))
@@ -426,11 +429,12 @@ class TechnitiumDHCPCoordinator(DataUpdateCoordinator):
 class TechnitiumDHCPDeviceTracker(CoordinatorEntity, ScannerEntity):
     """Representation of a TechnitiumDNS DHCP device tracker."""
 
-    def __init__(self, coordinator, lease_data, server_name, entry_id):
+    def __init__(self, coordinator, lease_data, server_name, entry_id, server_device_id):
         """Initialize the device tracker."""
         _LOGGER.debug("Initializing device tracker for lease: %s", lease_data)
         super().__init__(coordinator)
         self._lease_data = lease_data
+        self._server_device_id = server_device_id
         self._server_name = server_name
         self._entry_id = entry_id
         self._mac_address = lease_data.get("mac_address", "")
@@ -611,7 +615,7 @@ class TechnitiumDHCPDeviceTracker(CoordinatorEntity, ScannerEntity):
             name=self._name,
             manufacturer=manufacturer,
             model=model,
-            via_device=(DOMAIN, self._entry_id),  # Link to the TechnitiumDNS server device
+            via_device_id=self._server_device_id,  # Link to the TechnitiumDNS server device
             configuration_url=None,  # Could add device management URL if available
         )
 
