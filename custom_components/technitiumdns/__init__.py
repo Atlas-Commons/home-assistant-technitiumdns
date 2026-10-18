@@ -181,16 +181,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         KEY_BLOCKING_DISABLED_UNTIL: None,
     }
 
-device_registry = dr.async_get(hass)
-server_device = device_registry.async_get_or_create(
-    config_entry_id=entry.entry_id,
-    identifiers={(DOMAIN, entry.entry_id)},
-    manufacturer="Technitium",
-    name=entry.data["server_name"],
-    model="DNS Server",
-)
+    device_registry = dr.async_get(hass)
+    server_device = device_registry.async_get_or_create(
+        config_entry_id=entry.entry_id,
+        identifiers={(DOMAIN, entry.entry_id)},
+        manufacturer="Technitium",
+        name=entry.data["server_name"],
+        model="DNS Server",
+    )
 
-hass.data[DOMAIN][entry.entry_id]["server_device_id"] = server_device.id
+    hass.data[DOMAIN][entry.entry_id]["server_device_id"] = server_device.id
 
     # Forward the setup to the appropriate platforms in order
     _LOGGER.info("Starting platform setup for: %s", platforms)
