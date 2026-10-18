@@ -102,7 +102,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
                 _LOGGER.debug("Creating device tracker %d for lease: %s", i+1, lease)
                 
                 # Create device tracker
-                                device_tracker = TechnitiumDHCPDeviceTracker(
+                device_tracker = TechnitiumDHCPDeviceTracker(
                     coordinator, lease, server_name, entry.entry_id, server_device_id
                 )
                 device_trackers.append(device_tracker)
