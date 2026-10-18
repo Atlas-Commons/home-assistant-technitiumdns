@@ -611,7 +611,7 @@ class TechnitiumDHCPDeviceTracker(CoordinatorEntity, ScannerEntity):
             name=self._name,
             manufacturer=manufacturer,
             model=model,
-            via_device=(DOMAIN, self._entry_id),  # Link to the TechnitiumDNS server device
+            via_device_id=self._entry_id,  # Link to the TechnitiumDNS server device
             configuration_url=None,  # Could add device management URL if available
         )
 
