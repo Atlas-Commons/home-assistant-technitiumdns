@@ -27,7 +27,7 @@ _LOGGER = logging.getLogger(__name__)
 SCAN_INTERVAL = timedelta(minutes=1)
 UPDATE_CHECK_INTERVAL = timedelta(hours=1)
 
-async def _create_device_sensors(leases, dhcp_coordinator, server_name, entry_id, server_device_id):
+async def _create_device_sensors(leases, dhcp_coordinator, server_name, entry_id):
     """Create diagnostic sensors for a list of device leases."""
     device_sensors = []
 
@@ -71,7 +71,6 @@ async def async_setup_entry(hass, entry, async_add_entities):
     try:
         _LOGGER.info("Setting up TechnitiumDNS sensor platform for entry %s", entry.entry_id)
         config_entry = hass.data[DOMAIN][entry.entry_id]
-        server_device_id = config_entry["server_device_id"]
         api = config_entry["api"]
         server_name = config_entry["server_name"]
         stats_duration = config_entry["stats_duration"]
@@ -108,8 +107,12 @@ async def async_setup_entry(hass, entry, async_add_entities):
             if dhcp_coordinator.data:
                 _LOGGER.info("DHCP coordinator has %d devices, creating diagnostic sensors", len(dhcp_coordinator.data))
                 _LOGGER.debug("DHCP coordinator device MACs: %s", [lease.get("mac_address") for lease in dhcp_coordinator.data])
-                device_sensors = await _create_device_sensors(dhcp_coordinator.data, dhcp_coordinator, server_name, entry.entry_id, server_device_id)
-                sensors.extend(device_sensors)
+                device_sensors = await _create_device_sensors(
+                    dhcp_coordinator.data,
+                    dhcp_coordinator,
+                    server_name,
+                    entry.entry_id,
+                )                sensors.extend(device_sensors)
                 device_sensors_created = True
                 _LOGGER.info("Created %d device diagnostic sensors from coordinator data", len(device_sensors))
             else:
@@ -338,6 +341,7 @@ class TechnitiumDHCPDeviceDiagnosticSensor(CoordinatorEntity, SensorEntity):
 
         self._server_name = server_name
         self._entry_id = entry_id
+        self._server_device_id = coordinator.hass.data[DOMAIN][entry_id]["server_device_id"]
         self._sensor_type = sensor_type
         self._device_name = device_name
 
@@ -1000,7 +1004,12 @@ class DynamicSensorManager:
                 _LOGGER.debug("Dynamic sensor manager: No devices provided for sensor creation")
                 return
 
-            new_sensors = await _create_device_sensors(devices, self.dhcp_coordinator, self.server_name, self.entry.entry_id)
+            new_sensors = await _create_device_sensors(
+            devices,
+            self.dhcp_coordinator,
+            self.server_name,
+            self.entry.entry_id,
+)
 
             if new_sensors:
                 _LOGGER.info("Dynamic sensor manager: Adding %d new sensors to Home Assistant", len(new_sensors))
