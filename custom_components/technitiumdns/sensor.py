@@ -421,7 +421,7 @@ class TechnitiumDHCPDeviceDiagnosticSensor(CoordinatorEntity, SensorEntity):
             name=self._device_name,
             manufacturer=manufacturer,
             model=model,
-            via_device=(DOMAIN, self._entry_id),  # Link to the TechnitiumDNS server device
+            via_device_id=self._entry_id,  # Link to the TechnitiumDNS server device
         )
 
     @property
