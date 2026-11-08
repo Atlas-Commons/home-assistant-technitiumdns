@@ -140,11 +140,11 @@ Device Trackers (Optional):
 
 - **DHCP Device Tracking**: Monitor devices connected to your Technitium DHCP server
   - **MAC-Based Identification**: Devices are primarily identified by MAC address for consistency
-  - Shows connected/disconnected status based on DHCP lease status and activity
+   - Shows connected when a matching DHCP lease is present, otherwise disconnected; this is a lease-presence proxy, not a reachability test
   - Displays IP addresses, MAC addresses, and hostnames
   - Tracks lease information and expiration times
   - Can be enabled/disabled in integration options
-  - Configurable update interval (30s, 1min, 5min, 10min)
+   - Configurable update interval (30, 60, 180, 300, or 600 seconds)
   - **IP Address Filtering**: Control which devices are tracked based on IP addresses
     - **Disabled**: Track all devices (default)
     - **Include Mode**: Only track devices in specified IP ranges
@@ -154,27 +154,28 @@ Device Trackers (Optional):
 
 - **Device Diagnostic Sensors**: Each tracked device automatically gets dedicated diagnostic sensors:
   - **IP Address Sensor**: Current IP address of the device
-  - **MAC Address Sensor**: Hardware MAC address identifier  
+   - **MAC Address Sensor**: Hardware MAC address identifier
   - **Hostname Sensor**: Device hostname if available from DHCP
   - **Lease Obtained Sensor**: Timestamp when the DHCP lease was first obtained
   - **Lease Expires Sensor**: Timestamp when the current DHCP lease expires
   - **Last Seen Sensor**: Last DNS activity timestamp (requires DNS logging app)
   - **Is Stale Sensor**: Whether device has been inactive for too long (requires DNS logging)
   - **Minutes Since Seen Sensor**: How many minutes since last DNS activity (requires DNS logging)
-  - **Activity Score Sensor**: Intelligent activity score (0-100) distinguishing user activity from background traffic
-  - **Is Actively Used Sensor**: Smart determination if device is genuinely being used (eliminates false positives)
+   - **Activity Score Sensor**: Heuristic score (0-100) of observed DNS patterns, not a reliable distinction between user and background traffic
+   - **Is Actively Used Sensor**: Nullable heuristic based on recent DNS evidence; it does not guarantee elimination of false positives
   - **Activity Summary Sensor**: Human-readable analysis of device activity patterns
   - All sensors are marked as diagnostic entities for better organization in Home Assistant
-  - **Dynamic Creation**: Sensors are automatically created/removed as devices join/leave the network
+   - **Dynamic Creation**: Trackers and diagnostic sensors are created as leases are discovered; entities can remain in Home Assistant after a lease disappears
 
-- **Smart Activity Analysis**: Advanced feature that solves the "dormant device problem":
-  - **Problem**: Devices with only background traffic (NTP, updates, telemetry) were incorrectly shown as active
-  - **Solution**: Multi-factor scoring analyzes protocol mix, domain diversity, timing patterns, and background traffic ratio
-  - **Background Detection**: Automatically identifies automated traffic vs genuine user activity
-  - **Configurable Threshold**: Adjustable sensitivity (10-100 points, default: 55) for different network environments  
-  - **Analysis Window**: Configurable time window (15 minutes to 4 hours, default: 2 hours) for activity pattern analysis
+- **Smart Activity Analysis**: Heuristic classification of available DNS query logs:
+   - **Purpose**: A heuristic classification of observed DNS traffic, not proof of device or human activity
+   - **Scoring**: Multi-factor scoring analyzes protocol mix, domain diversity, timing patterns, and background traffic ratio
+   - **Evidence gate**: Requires at least 3 DNS log records from the newest 30 minutes; otherwise score and classification remain unknown
+   - **Configurable Threshold**: Adjustable sensitivity (10-100 points, default: 55) for different network environments
+   - **Analysis Window**: Configurable time window (15 minutes to 4 hours, default: 120 minutes); the evidence gate still uses the newest 30 minutes
   - **Rich Diagnostics**: Detailed scoring breakdown for troubleshooting device activity patterns
   - **Score Categories**: Very Low (10), Low (33), Medium (55), High (76), Very High (100)
+   - **Defaults**: DNS log tracking is off; Smart Activity Analysis is on. Scores require DNS log tracking and sufficient recent records.
 
 - **DNS Query Logs Tracking** (Advanced):
   - **Requires DNS App Installation**: DNS query logging is only available through DNS apps with logging capability
@@ -192,12 +193,14 @@ After setting up the integration, you can configure additional options by going 
 3. Available options:
    - **Statistics update interval**: How often DNS statistics sensors refresh (30, 60, 120, or 300 seconds). This is separate from **Statistics duration** chosen at setup, which controls the stats *window* (e.g. last hour vs last day).
    - **Enable DHCP Device Tracking**: Turn on device tracking for DHCP clients
-   - **DHCP Update Interval**: How often to check for DHCP lease changes (30-600 seconds)
+   - **DHCP Update Interval**: How often to check for DHCP lease changes (30, 60, 180, 300, or 600 seconds)
    - **IP Filter Mode**: Choose how to filter devices by IP address
    - **IP Addresses/Ranges**: Specify which IPs to include or exclude (comma or newline separated)
    - **Smart Activity Analysis**: Enable intelligent activity scoring for devices (default: enabled)
    - **Activity Score Threshold**: Minimum score to consider a device "actively used" (10-100, default: 55)
-   - **Activity Analysis Window**: Time window for analyzing device activity patterns (15 minutes to 4 hours, default: 2 hours)
+   - **Activity Analysis Window**: Time window for analyzing device activity patterns (15 minutes to 4 hours, default: 120 minutes)
+
+DHCP option changes reload the integration. IP filtering is disabled by default; include mode tracks only matching IPv4 addresses, while exclude mode tracks addresses outside the configured ranges. Entries accept single IPv4 addresses, CIDR networks, or IPv4 ranges separated by commas, semicolons, or newlines. Invalid, empty, or over-limit filters fail closed when filtering is enabled.
 
 ### IP Filtering Examples
 
@@ -224,42 +227,35 @@ After setting up the integration, you can configure additional options by going 
 
 ## Entity Management
 
-### Automatic Cleanup
-When you change IP filtering settings, the integration automatically removes device tracker entities and their associated diagnostic sensors for devices that no longer match the filter criteria. This happens during the next data update cycle.
+### Orphan Report
+On request, the integration scans its own DHCP tracker and per-device sensor entities and logs candidates whose MAC is absent from current coordinator data. The report includes counts and up to 20 individual entries per category. It does not remove entity-registry entries, device-registry entries, or entities. If coordinator data is unavailable, orphan status is reported as unknown. IP-only tracker IDs are reported without claiming a MAC match.
 
 ### Manual Cleanup
-If you need to manually clean up orphaned entities:
+To request a non-destructive scan:
 
-1. **Using the Cleanup Button**: Go to your TechnitiumDNS device page and click the "Cleanup Devices" button.
+1. **Using the button**: Go to your TechnitiumDNS device page and click "Scan for Orphaned DHCP Entities".
 
-2. **Using the Service**: Call the `technitiumdns.cleanup_devices` service:
+2. **Using the service**: Call the legacy-named `technitiumdns.cleanup_devices` service:
    ```yaml
    service: technitiumdns.cleanup_devices
    data:
-     config_entry_id: "your_entry_id"  # Optional - if omitted, cleans all entries
+       config_entry_id: "your_entry_id"  # Optional - if omitted, scans all loaded entries
    ```
 
-3. **Using Developer Tools**: Go to Developer Tools > Services and search for "Cleanup Devices".
+3. **Using Developer Tools**: Go to Developer Tools > Actions and search for `technitiumdns.cleanup_devices`.
 
 ## Available Services
 
 The integration provides these services for advanced control:
 
-1. **technitiumdns.cleanup_devices**: Remove orphaned device tracker entities and sensors
-   - `config_entry_id` (optional): Target specific integration instance
-   
+1. **technitiumdns.cleanup_devices**: Log a non-destructive report of DHCP tracker and sensor candidates
+   - `config_entry_id` (optional): Scan a specific loaded integration instance; omitted scans all loaded entries
 2. **technitiumdns.get_dhcp_leases**: Retrieve DHCP lease information programmatically
-   - `config_entry_id` (optional): Target specific integration instance  
+   - `config_entry_id` (optional): Target specific integration instance
    - `include_inactive` (optional): Include expired leases (default: false)
    - `filter_scope` (optional): Filter by specific DHCP scope (e.g., "192.168.1.0/24")
 
-### What Gets Cleaned Up
-- Device tracker entities for devices no longer matching IP filters
-- All diagnostic sensors associated with removed devices
-- Device registry entries for devices with no remaining entities
-- Orphaned entity registry entries
-
-**Note**: Only entities belonging to this integration are affected. Other integrations and their entities remain untouched.
+The scan is limited to this integration's device-tracker entities and per-device diagnostic sensors owned by the selected config entry. It does not modify any entity or device registry entries. Other integrations and unrelated entities are ignored.
 
 ## 📚 Documentation
 
