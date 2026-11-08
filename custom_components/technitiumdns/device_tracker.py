@@ -4,7 +4,7 @@ This module provides device tracker entities that monitor DHCP lease status.
 Diagnostic sensor entities for each tracked device are created by the sensor platform
 and are automatically linked to the device through proper device grouping.
 """
-from datetime import timedelta, datetime
+from datetime import timedelta, datetime, timezone
 import logging
 
 from homeassistant.components.device_tracker import ScannerEntity
@@ -31,12 +31,22 @@ from .const import (
     DEFAULT_ACTIVITY_ANALYSIS_WINDOW,
 )
 from .dns_logs import (
+    DNSLogsUnavailableError,
     get_dns_logs_for_analysis,
     get_last_seen_for_multiple_ips,
     test_dns_logs_api,
 )
-from .utils import should_track_ip, normalize_mac_address, normalize_hostname
-from .activity_analyzer import SmartActivityAnalyzer, analyze_batch_device_activity
+from .utils import (
+    should_track_ip,
+    normalize_mac_address,
+    normalize_hostname,
+    parse_timestamp,
+)
+from .activity_analyzer import (
+    SmartActivityAnalyzer,
+    _normalize_log_entry,
+    analyze_batch_device_activity,
+)
 
 # Import cleanup functionality
 async def async_cleanup_orphaned_entities(hass, entry_id, current_devices):
@@ -45,6 +55,49 @@ async def async_cleanup_orphaned_entities(hass, entry_id, current_devices):
     return await cleanup_func(hass, entry_id, current_devices)
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def _latest_activity_timestamp(dns_logs, ip_address):
+    """Return the latest valid DNS timestamp for an analyzed device."""
+    timestamps = []
+    for log in dns_logs:
+        normalized_log = _normalize_log_entry(log)
+        if not normalized_log or normalized_log["clientIpAddress"] != ip_address:
+            continue
+        timestamp = normalized_log["_timestamp"]
+        now = datetime.now(timestamp.tzinfo)
+        if timestamp <= now + timedelta(minutes=2):
+            timestamps.append(timestamp)
+    return max(timestamps, default=None)
+
+
+def _logs_for_current_leases(dns_logs, ip_to_lease_map):
+    """Keep only valid DNS records at or after their current lease start."""
+    current_logs = []
+    for log in dns_logs:
+        normalized_log = _normalize_log_entry(log)
+        if not normalized_log:
+            continue
+        lease = ip_to_lease_map.get(normalized_log["clientIpAddress"])
+        if lease is None:
+            continue
+        lease_obtained = parse_timestamp(lease.get("lease_obtained"))
+        if lease_obtained is not None and normalized_log["_timestamp"] >= lease_obtained:
+            current_logs.append(normalized_log)
+    return current_logs
+
+
+def _mark_ambiguous_activity(lease):
+    """Leave activity unknown when DNS records cannot be tied to this lease."""
+    lease["activity_status"] = "ambiguous"
+    lease["activity_summary"] = "DNS activity attribution is ambiguous"
+    lease["activity_score"] = None
+    lease["is_actively_used"] = None
+    lease["is_stale"] = None
+    lease["last_seen"] = None
+    lease["minutes_since_seen"] = None
+    lease["activity_evidence"] = None
+    lease["score_breakdown"] = None
 
 
 async def async_setup_entry(hass, entry, async_add_entities):
@@ -56,8 +109,6 @@ async def async_setup_entry(hass, entry, async_add_entities):
         api = config_entry["api"]
         server_name = config_entry["server_name"]
         server_device_id = config_entry["server_device_id"]
-        
-        _LOGGER.debug("Retrieved config entry data: api=%s, server_name=%s", api, server_name)
         
         # Get update interval from options, default to 60 seconds
         update_interval = entry.options.get("dhcp_update_interval", 60)
@@ -99,8 +150,6 @@ async def async_setup_entry(hass, entry, async_add_entities):
         if coordinator.data:
             _LOGGER.info("Processing %d DHCP leases to create device trackers", len(coordinator.data))
             for i, lease in enumerate(coordinator.data):
-                _LOGGER.debug("Creating device tracker %d for lease: %s", i+1, lease)
-                
                 # Create device tracker
                 device_tracker = TechnitiumDHCPDeviceTracker(
                     coordinator, lease, server_name, entry.entry_id, server_device_id
@@ -115,11 +164,69 @@ async def async_setup_entry(hass, entry, async_add_entities):
         _LOGGER.info("Adding %d device tracker entities to Home Assistant", len(device_trackers))
         async_add_entities(device_trackers, True)
 
+        registered_devices = {
+            normalize_mac_address(lease["mac_address"])
+            if lease.get("mac_address")
+            else f"ip:{lease.get('ip_address', '')}"
+            for lease in coordinator.data or []
+        }
+
+        def _handle_coordinator_update():
+            """Add trackers for leases discovered after initial setup."""
+            new_trackers = []
+            new_device_keys = set()
+            for lease in coordinator.data or []:
+                mac_address = lease.get("mac_address")
+                device_key = (
+                    normalize_mac_address(mac_address)
+                    if mac_address
+                    else f"ip:{lease.get('ip_address', '')}"
+                )
+                if device_key in registered_devices or device_key in new_device_keys:
+                    continue
+                new_device_keys.add(device_key)
+                new_trackers.append(
+                    TechnitiumDHCPDeviceTracker(
+                        coordinator,
+                        lease,
+                        server_name,
+                        entry.entry_id,
+                        server_device_id,
+                    )
+                )
+
+            if not new_trackers:
+                return
+
+            try:
+                async_add_entities(new_trackers, True)
+            except Exception:
+                _LOGGER.exception("Failed to add trackers for newly discovered DHCP leases")
+                return
+
+            registered_devices.update(new_device_keys)
+
+        remove_listener = coordinator.async_add_listener(_handle_coordinator_update)
+        entry_data = hass.data[DOMAIN][entry.entry_id]
+        previous_remove_listener = entry_data.pop("device_tracker_listener", None)
+        if previous_remove_listener:
+            previous_remove_listener()
+        entry_data["device_tracker_listener"] = remove_listener
+
         _LOGGER.info("TechnitiumDNS DHCP device tracker setup completed successfully: %d device trackers", len(device_trackers))
 
     except Exception as e:
         _LOGGER.error("Could not initialize TechnitiumDNS DHCP tracking: %s", e, exc_info=True)
         raise ConfigEntryNotReady from e
+
+
+async def async_unload_entry(hass, entry):
+    """Remove the DHCP coordinator listener when unloading the tracker platform."""
+    entry_data = hass.data.get(DOMAIN, {}).get(entry.entry_id, {})
+    remove_listener = entry_data.pop("device_tracker_listener", None)
+    if remove_listener:
+        remove_listener()
+    return True
 
 
 class TechnitiumDHCPCoordinator(DataUpdateCoordinator):
@@ -182,10 +289,14 @@ class TechnitiumDHCPCoordinator(DataUpdateCoordinator):
             skipped_count = 0
             
             for i, lease in enumerate(leases):
-                lease_type = lease.type
-                ip_address = lease.address
-                mac_address = lease.hardware_address or ""
-                _LOGGER.debug("Processing lease %d: type=%s, address=%s, mac=%s", i+1, lease_type, ip_address, mac_address)
+                lease_type = getattr(lease, "type", None)
+                ip_address = getattr(lease, "address", None)
+                mac_address = getattr(lease, "hardware_address", None) or ""
+                address_status = getattr(lease, "address_status", None)
+                lease_expires_value = getattr(lease, "lease_expires", None)
+                lease_obtained_value = getattr(lease, "lease_obtained", None)
+                lease_expires = parse_timestamp(lease_expires_value)
+                lease_obtained = parse_timestamp(lease_obtained_value)
                 
                 # Filter leases based on the official Technitium DNS API specification
                 should_include = False
@@ -196,21 +307,14 @@ class TechnitiumDHCPCoordinator(DataUpdateCoordinator):
                     skip_reason = "no IP address"
                 elif not mac_address:
                     skip_reason = "no MAC address"
+                elif address_status and address_status != "InUse":
+                    skip_reason = f"address status is {address_status}"
+                elif lease_expires is not None and lease_expires <= datetime.now(timezone.utc):
+                    skip_reason = "lease has expired"
+                elif not address_status and lease_expires is None:
+                    skip_reason = "missing address status and valid lease expiry"
                 else:
-                    # Accept lease types according to Technitium DNS API docs
-                    if lease_type == "Dynamic":
-                        should_include = True
-                        # _LOGGER.debug("Including Dynamic lease")
-                    elif lease_type == "Reserved":
-                        should_include = True
-                        # _LOGGER.debug("Including Reserved lease")
-                    elif not lease_type:  # Type might be empty/null
-                        should_include = True
-                        # _LOGGER.debug("Including lease with empty type (assuming dynamic)")
-                    else:
-                        # Log but still include unknown lease types to be flexible
-                        should_include = True
-                        # _LOGGER.debug("Including lease with unknown type '%s'", lease_type)
+                    should_include = True
                 
                 if should_include:
                     # Normalize hostname to ensure it's always a string
@@ -222,29 +326,47 @@ class TechnitiumDHCPCoordinator(DataUpdateCoordinator):
                         continue
                     
                     # Get datetime fields and convert to ISO format strings for sensors
-                    lease_expires = getattr(lease, "lease_expires", None)
-                    lease_obtained = getattr(lease, "lease_obtained", None)
+                    lease_expires_diagnostic = (
+                        lease_expires.isoformat()
+                        if lease_expires is not None
+                        else lease_expires_value
+                        if isinstance(lease_expires_value, str)
+                        else None
+                    )
+                    lease_obtained_diagnostic = (
+                        lease_obtained.isoformat()
+                        if lease_obtained is not None
+                        else lease_obtained_value
+                        if isinstance(lease_obtained_value, str)
+                        else None
+                    )
                     
                     processed_lease = {
                         "ip_address": ip_address,
                         "mac_address": normalize_mac_address(mac_address),
                         "hostname": hostname,
                         "client_id": getattr(lease, "client_identifier", "") or "",
-                        "lease_expires": lease_expires.isoformat() if lease_expires else None,
-                        "lease_obtained": lease_obtained.isoformat() if lease_obtained else None,
+                        "lease_expires": lease_expires_diagnostic,
+                        "lease_obtained": lease_obtained_diagnostic,
                         "scope": getattr(lease, "scope", "") or "",
                         "type": lease_type,
+                        "address_status": address_status,
                         "last_seen": None,  # Will be populated by DNS log query
-                        "is_stale": False,  # Will be calculated based on last_seen or activity score
-                        "minutes_since_seen": 0,  # Minutes since last DNS activity
-                        "activity_score": 0,  # Smart activity score (0-100)
-                        "is_actively_used": False,  # Whether device is genuinely being used
+                        "is_stale": None,
+                        "minutes_since_seen": None,
+                        "activity_score": None,
+                        "is_actively_used": None,
+                        "activity_evidence": None,
+                        "score_breakdown": None,
+                        "activity_status": (
+                            "disabled"
+                            if not self.log_tracking or not self.smart_activity_enabled
+                            else "unavailable"
+                        ),
                         "activity_summary": "",  # Human-readable activity summary
                     }
                     processed_leases.append(processed_lease)
-                    _LOGGER.debug("Added lease for tracking: IP=%s, MAC=%s, hostname=%s, type=%s", ip_address, processed_lease["mac_address"], processed_lease["hostname"], lease_type)
                 else:
-                    _LOGGER.debug("Skipping lease: %s", skip_reason)
                     skipped_count += 1
             
             # Query DNS logs for last seen times if enabled
@@ -261,20 +383,7 @@ class TechnitiumDHCPCoordinator(DataUpdateCoordinator):
             if filtered_count > 0:
                 _LOGGER.info("Filtered out %d devices based on IP filter settings", filtered_count)
             
-            _LOGGER.debug("Final processed DHCP leases: %s", processed_leases)
             _LOGGER.info("DHCP update cycle completed successfully with %d trackable devices", len(processed_leases))
-            
-            # Track current devices for cleanup purposes - normalize MAC addresses
-            current_macs = set()
-            for lease in processed_leases:
-                mac = lease.get("mac_address")
-                if mac:
-                    normalized_mac = normalize_mac_address(mac)
-                    current_macs.add(normalized_mac)
-                    # _LOGGER.debug("Device tracker normalized MAC %s -> %s", mac, normalized_mac)
-            _LOGGER.debug("Device tracker collected %d normalized MAC addresses: %s", 
-                        len(current_macs), sorted(current_macs))
-            await self._cleanup_orphaned_entities(current_macs)
             
             return processed_leases
             
@@ -285,22 +394,36 @@ class TechnitiumDHCPCoordinator(DataUpdateCoordinator):
     async def _get_last_seen_for_devices(self, processed_leases):
         """Query DNS logs to get last seen times and activity analysis for devices."""
         if not self.log_tracking:
-            _LOGGER.debug("DNS log tracking disabled, skipping last seen queries")
+            for lease in processed_leases:
+                lease["activity_status"] = "disabled"
             return processed_leases
             
         # Extract all IP addresses for batch query
         ip_addresses = []
         ip_to_lease_map = {}
+        leases_by_ip = {}
         
         for lease in processed_leases:
             ip_address = lease.get("ip_address")
             if ip_address:
-                ip_addresses.append(ip_address)
-                # Map IP to lease for easier lookup
-                ip_to_lease_map[ip_address] = lease
+                leases_by_ip.setdefault(ip_address, []).append(lease)
+
+        for ip_address, leases in leases_by_ip.items():
+            if len(leases) != 1:
+                for lease in leases:
+                    _mark_ambiguous_activity(lease)
+                continue
+
+            lease = leases[0]
+            lease_start = parse_timestamp(lease.get("lease_obtained"))
+            if lease_start is None:
+                _mark_ambiguous_activity(lease)
+                continue
+
+            ip_addresses.append(ip_address)
+            ip_to_lease_map[ip_address] = lease
         
         if not ip_addresses:
-            _LOGGER.debug("No IP addresses to query for DNS logs")
             return processed_leases
             
         _LOGGER.info("Performing batch DNS log query for %d devices", len(ip_addresses))
@@ -308,12 +431,18 @@ class TechnitiumDHCPCoordinator(DataUpdateCoordinator):
         try:
             # First, test if DNS logs API is working at all
             api_test = await test_dns_logs_api(self.api)
-            _LOGGER.debug("DNS logs API test result: %s", api_test)
             
             if not api_test.get("available"):
                 _LOGGER.warning("DNS logs API is not available: %s", api_test.get("message"))
                 _LOGGER.warning("Disabling DNS log tracking for this update cycle")
-                # Return early, leaving all devices with default values
+                for lease in ip_to_lease_map.values():
+                    lease["activity_status"] = "unavailable"
+                    lease["last_seen"] = None
+                    lease["minutes_since_seen"] = None
+                    lease["activity_score"] = None
+                    lease["is_actively_used"] = None
+                    lease["activity_evidence"] = None
+                    lease["score_breakdown"] = None
                 return processed_leases
             
             # Get DNS logs for smart activity analysis
@@ -324,8 +453,11 @@ class TechnitiumDHCPCoordinator(DataUpdateCoordinator):
                 # Use a longer window to capture more activity (at least 4 hours)
                 analysis_window_hours = max(4, self.activity_analyzer.analysis_window_minutes / 60)
                 dns_logs = await get_dns_logs_for_analysis(
-                    self.api, hours_back=analysis_window_hours
+                    self.api,
+                    hours_back=analysis_window_hours,
+                    raise_on_error=True,
                 )
+                dns_logs = _logs_for_current_leases(dns_logs, ip_to_lease_map)
                 
                 if dns_logs:
                     # Perform batch activity analysis
@@ -336,46 +468,137 @@ class TechnitiumDHCPCoordinator(DataUpdateCoordinator):
                     # Update leases with activity analysis
                     for ip_address, lease in ip_to_lease_map.items():
                         activity_data = activity_results.get(ip_address, {})
+
+                        if activity_data.get("status") == "error":
+                            lease["activity_status"] = "error"
+                            lease["activity_summary"] = activity_data.get(
+                                "analysis_summary", "Activity analysis failed"
+                            )
+                            lease["activity_score"] = None
+                            lease["is_actively_used"] = None
+                            lease["is_stale"] = None
+                            lease["last_seen"] = None
+                            lease["minutes_since_seen"] = None
+                            lease["activity_evidence"] = None
+                            lease["score_breakdown"] = None
+                            continue
+
+                        analysis_status = activity_data.get("status")
+                        if analysis_status in ("no_data", "insufficient_evidence") or not activity_data.get("total_queries", 0):
+                            lease["activity_status"] = (
+                                analysis_status
+                                if analysis_status in ("no_data", "insufficient_evidence")
+                                else "no_data"
+                            )
+                            lease["activity_summary"] = activity_data.get(
+                                "analysis_summary", "No DNS activity found"
+                            )
+                            lease["activity_score"] = None
+                            lease["is_actively_used"] = None
+                            lease["is_stale"] = None
+                            lease["last_seen"] = None
+                            lease["minutes_since_seen"] = None
+                            lease["score_breakdown"] = None
+                            lease["activity_evidence"] = activity_data.get(
+                                "activity_evidence"
+                            )
+                            continue
                         
                         lease["activity_score"] = activity_data.get("activity_score", 0)
                         lease["is_actively_used"] = activity_data.get("is_actively_used", False)
-                        lease["activity_summary"] = activity_data.get("analysis_summary", "No analysis")
-                        
-                        # Use smart activity for staleness determination
-                        lease["is_stale"] = not activity_data.get("is_actively_used", False)
-                        
-                        _LOGGER.debug(
-                            "Device %s: activity_score=%.1f, actively_used=%s, summary='%s'",
-                            ip_address, lease["activity_score"], 
-                            lease["is_actively_used"], lease["activity_summary"]
+                        lease["activity_status"] = "analyzed"
+                        lease["activity_evidence"] = activity_data.get(
+                            "activity_evidence"
                         )
+                        lease["score_breakdown"] = activity_data.get("score_breakdown")
+                        lease["activity_summary"] = activity_data.get("analysis_summary", "No analysis")
+                        latest_timestamp = _latest_activity_timestamp(
+                            dns_logs, ip_address
+                        )
+                        if latest_timestamp is not None:
+                            lease["last_seen"] = latest_timestamp.isoformat()
+                            minutes_since_seen = max(
+                                0,
+                                int(
+                                    (
+                                        datetime.now(latest_timestamp.tzinfo)
+                                        - latest_timestamp
+                                    ).total_seconds()
+                                    / 60
+                                ),
+                            )
+                            lease["minutes_since_seen"] = minutes_since_seen
                         
-                    _LOGGER.info("Smart activity analysis completed for %d devices", len(ip_addresses))
+                        lease["is_stale"] = (
+                            not lease["is_actively_used"]
+                            if lease["is_actively_used"] is not None
+                            else None
+                        )
+                    _LOGGER.info(
+                        "Smart activity analysis completed for %d devices",
+                        len(ip_addresses),
+                    )
                 else:
                     _LOGGER.warning("No DNS logs available for smart activity analysis")
-                    # Fall back to basic last seen tracking
-                    await self._perform_basic_last_seen_tracking(ip_addresses, ip_to_lease_map)
+                    for lease in ip_to_lease_map.values():
+                        lease["activity_status"] = "no_data"
+                        lease["activity_summary"] = "No DNS activity found"
+                        lease["activity_score"] = None
+                        lease["is_actively_used"] = None
+                        lease["is_stale"] = None
+                        lease["activity_evidence"] = None
+                        lease["last_seen"] = None
+                        lease["minutes_since_seen"] = None
+                        lease["score_breakdown"] = None
             else:
-                # Perform basic last seen tracking without smart activity
-                await self._perform_basic_last_seen_tracking(ip_addresses, ip_to_lease_map)
-            
-        except Exception as e:
-            _LOGGER.error("Error in DNS log processing: %s", e, exc_info=True)
-            # Fall back to marking all devices based on DHCP presence only
-            for lease in processed_leases:
+                for lease in ip_to_lease_map.values():
+                    lease["activity_status"] = "disabled"
+                await self._perform_basic_last_seen_tracking(
+                    ip_addresses, ip_to_lease_map
+                )
+        except DNSLogsUnavailableError as err:
+            _LOGGER.warning("DNS logs became unavailable during processing: %s", err)
+            for lease in ip_to_lease_map.values():
+                lease["activity_status"] = "unavailable"
                 lease["last_seen"] = None
-                lease["is_stale"] = False
-                lease["minutes_since_seen"] = 0
-                lease["activity_score"] = 50  # Neutral score
-                lease["is_actively_used"] = True  # Assume active if DHCP lease exists
-                lease["activity_summary"] = "DHCP lease active (DNS analysis failed)"
-        
+                lease["is_stale"] = None
+                lease["minutes_since_seen"] = None
+                lease["activity_score"] = None
+                lease["is_actively_used"] = None
+                lease["score_breakdown"] = None
+                lease["activity_summary"] = ""
+        except Exception as err:
+            _LOGGER.error("Error in DNS log processing: %s", err, exc_info=True)
+            for lease in ip_to_lease_map.values():
+                lease["activity_status"] = "error"
+                lease["last_seen"] = None
+                lease["is_stale"] = None
+                lease["minutes_since_seen"] = None
+                lease["activity_score"] = None
+                lease["is_actively_used"] = None
+                lease["score_breakdown"] = None
+                lease["activity_evidence"] = None
+                lease["activity_summary"] = ""
+
         # Log summary statistics
         if self.smart_activity_enabled:
-            active_count = sum(1 for lease in processed_leases if lease.get("is_actively_used", False))
-            avg_score = sum(lease.get("activity_score", 0) for lease in processed_leases) / len(processed_leases) if processed_leases else 0
-            _LOGGER.info("Activity analysis summary: %d/%d devices actively used, average score: %.1f", 
-                        active_count, len(processed_leases), avg_score)
+            analyzed_leases = [
+                lease for lease in processed_leases
+                if lease.get("activity_status") == "analyzed"
+            ]
+            if analyzed_leases:
+                active_count = sum(
+                    1 for lease in analyzed_leases if lease["is_actively_used"]
+                )
+                avg_score = sum(
+                    lease["activity_score"] for lease in analyzed_leases
+                ) / len(analyzed_leases)
+                _LOGGER.info(
+                    "Activity analysis summary: %d/%d devices actively used, average score: %.1f",
+                    active_count, len(analyzed_leases), avg_score
+                )
+            else:
+                _LOGGER.info("Activity analysis returned no analyzed device data")
         
         return processed_leases
     
@@ -386,7 +609,14 @@ class TechnitiumDHCPCoordinator(DataUpdateCoordinator):
         # Single batch call to get last seen times for all devices
         # Start with a shorter time window (6 hours) for better performance
         last_seen_times = await get_last_seen_for_multiple_ips(
-            self.api, ip_addresses, hours_back=6
+            self.api,
+            ip_addresses,
+            hours_back=6,
+            raise_on_error=True,
+            lease_obtained_by_ip={
+                ip_address: parse_timestamp(lease.get("lease_obtained"))
+                for ip_address, lease in ip_to_lease_map.items()
+            },
         )
         
         # Update all leases with the results
@@ -395,8 +625,6 @@ class TechnitiumDHCPCoordinator(DataUpdateCoordinator):
             
             if last_seen:
                 lease["last_seen"] = last_seen
-                _LOGGER.debug("Device %s last seen at %s", ip_address, last_seen)
-                
                 # Calculate if device is stale based on time threshold
                 try:
                     last_seen_dt = datetime.fromisoformat(last_seen.replace('Z', '+00:00'))
@@ -404,25 +632,16 @@ class TechnitiumDHCPCoordinator(DataUpdateCoordinator):
                     minutes_since_seen = (now - last_seen_dt).total_seconds() / 60
                     lease["is_stale"] = minutes_since_seen > self.stale_threshold_minutes
                     lease["minutes_since_seen"] = int(minutes_since_seen)
-                    lease["activity_score"] = 100 if not lease["is_stale"] else 0  # Binary score
-                    lease["is_actively_used"] = not lease["is_stale"]
                     lease["activity_summary"] = f"Last seen {int(minutes_since_seen)} minutes ago"
-                    _LOGGER.debug("Device %s: %d minutes since last seen, stale=%s", 
-                                ip_address, int(minutes_since_seen), lease["is_stale"])
                 except Exception as e:
-                    _LOGGER.debug("Error parsing last seen time for %s: %s", ip_address, e)
+                    _LOGGER.warning("Could not parse last-seen time for DHCP client %s", ip_address)
                     lease["is_stale"] = False
                     lease["minutes_since_seen"] = 0
-                    lease["activity_score"] = 50
-                    lease["is_actively_used"] = True
                     lease["activity_summary"] = "Recent DHCP activity"
             else:
-                _LOGGER.debug("No DNS log entries found for device %s", ip_address)
                 lease["last_seen"] = None
                 lease["is_stale"] = True  # No DNS activity = stale
                 lease["minutes_since_seen"] = 9999
-                lease["activity_score"] = 0
-                lease["is_actively_used"] = False
                 lease["activity_summary"] = "No recent DNS activity"
 
 
@@ -431,7 +650,6 @@ class TechnitiumDHCPDeviceTracker(CoordinatorEntity, ScannerEntity):
 
     def __init__(self, coordinator, lease_data, server_name, entry_id, server_device_id):
         """Initialize the device tracker."""
-        _LOGGER.debug("Initializing device tracker for lease: %s", lease_data)
         super().__init__(coordinator)
         self._lease_data = lease_data
         self._server_device_id = server_device_id
@@ -441,9 +659,6 @@ class TechnitiumDHCPDeviceTracker(CoordinatorEntity, ScannerEntity):
         # Normalize hostname to ensure it's always a string
         self._hostname = normalize_hostname(lease_data.get("hostname", ""))
         
-        # Debug MAC address handling
-        _LOGGER.debug("Device tracker init: MAC='%s', Hostname='%s'", self._mac_address, self._hostname)
-        
         # Create a friendly name based on hostname first, then MAC
         if self._hostname and self._hostname.strip():
             self._name = self._hostname.replace('.home.internal', '').replace('.local', '')
@@ -452,9 +667,6 @@ class TechnitiumDHCPDeviceTracker(CoordinatorEntity, ScannerEntity):
         else:
             self._name = f"Device_{lease_data.get('ip_address', '').replace('.', '_')}"
         
-        _LOGGER.info("Created device tracker '%s' for MAC %s (IP: %s)", 
-                    self._name, self._mac_address, lease_data.get('ip_address'))
-
     @property
     def name(self):
         """Return the name of the device tracker."""
@@ -480,32 +692,14 @@ class TechnitiumDHCPDeviceTracker(CoordinatorEntity, ScannerEntity):
 
     @property
     def is_connected(self):
-        """Return if the device is connected."""
-        # Check if the device still exists in the current coordinator data
-        if not self.coordinator.data:
-            _LOGGER.debug("Device %s: no coordinator data available - marking as disconnected", self._name)
+        """Return whether the current DHCP lease is present, a connectivity proxy."""
+        if self.coordinator.data is None:
             return False
             
         for lease in self.coordinator.data:
             if lease.get("mac_address") == self._mac_address:
-                # If smart activity analysis is enabled, use activity-based connection status
-                if self.coordinator.smart_activity_enabled and lease.get("activity_score") is not None:
-                    is_actively_used = lease.get("is_actively_used", False)
-                    _LOGGER.debug("Device %s: smart activity analysis - actively_used=%s, score=%.1f - marking as %s", 
-                                self._name, is_actively_used, lease.get("activity_score", 0),
-                                "connected" if is_actively_used else "disconnected")
-                    return is_actively_used
-                # If DNS log tracking is enabled but smart activity disabled, consider staleness
-                elif lease.get("is_stale") is not None:
-                    is_stale = lease.get("is_stale", False)
-                    _LOGGER.debug("Device %s: found lease, is_stale=%s - marking as %s", 
-                                self._name, is_stale, "disconnected" if is_stale else "connected")
-                    return not is_stale
-                else:
-                    _LOGGER.debug("Device %s: found active lease (no activity/staleness check) - marking as connected", self._name)
-                    return True
+                return True
         
-        _LOGGER.debug("Device %s: no active lease found - marking as disconnected", self._name)
         return False
 
     @property
@@ -537,51 +731,40 @@ class TechnitiumDHCPDeviceTracker(CoordinatorEntity, ScannerEntity):
 
     @property
     def extra_state_attributes(self):
-        """Return additional attributes."""
-        attributes = {
-            "source": "TechnitiumDNS DHCP",
-        }
-        
-        # Add minimal lease-specific information
+        """Return additional lease attributes."""
+        attributes = {"source": "TechnitiumDNS DHCP"}
         if self.coordinator.data:
             for lease in self.coordinator.data:
                 if lease.get("mac_address") == self._mac_address:
                     attributes.update({
                         "scope": lease.get("scope", ""),
                         "lease_type": lease.get("type", ""),
+                        "address_status": lease.get("address_status"),
+                        "lease_expires": lease.get("lease_expires"),
+                        "lease_obtained": lease.get("lease_obtained"),
+                        "activity_status": lease.get("activity_status", "unknown"),
+                        "activity_evidence": lease.get("activity_evidence"),
                     })
                     break
-        
         return attributes
 
     @property
     def device_info(self):
-        """Return device information for this entity."""
-        # Create proper device registry entry for each DHCP device
-        _LOGGER.debug("Device %s: Creating device_info, MAC='%s', has_MAC=%s", 
-                     self._name, self._mac_address, bool(self._mac_address))
-        
+        """Return device information for this DHCP client."""
         if self._mac_address and self._mac_address.strip():
             normalized_mac = normalize_mac_address(self._mac_address)
-            mac_clean = normalized_mac.replace(':', '').lower()
+            mac_clean = normalized_mac.replace(":", "").lower()
             device_id = f"{DOMAIN}_dhcp_device_{mac_clean}"
-            _LOGGER.debug("Device %s: Using MAC-based device ID: %s (from MAC: %s)", 
-                         self._name, device_id, self._mac_address)
         else:
-            # Fallback to IP-based ID if no MAC
-            ip_clean = self._lease_data.get('ip_address', '').replace('.', '_')
+            ip_clean = self._lease_data.get("ip_address", "").replace(".", "_")
             device_id = f"{DOMAIN}_dhcp_device_ip_{ip_clean}"
-            _LOGGER.warning("Device %s: No MAC address available (MAC='%s'), using IP-based device ID: %s", 
-                           self._name, self._mac_address, device_id)
-        
-        # Try to determine device manufacturer from MAC address OUI if possible
+
         manufacturer = "Unknown"
         if self._mac_address:
-            # Basic OUI lookup for common manufacturers (can be expanded)
-            mac_prefix = self._mac_address.replace(':', '').upper()[:6]
+            mac_prefix = self._mac_address.replace(":", "").upper()[:6]
             oui_map = {
                 "00215A": "Apple",
-                "3C0754": "Apple", 
+                "3C0754": "Apple",
                 "F0F61C": "Apple",
                 "DC86D8": "Raspberry Pi Foundation",
                 "B827EB": "Raspberry Pi Foundation",
@@ -593,10 +776,8 @@ class TechnitiumDHCPDeviceTracker(CoordinatorEntity, ScannerEntity):
                 "005056": "VMware",
             }
             manufacturer = oui_map.get(mac_prefix, "Unknown")
-        
-        # Determine a reasonable model name
-        hostname = self._hostname or ""
-        hostname_lower = hostname.lower()
+
+        hostname_lower = (self._hostname or "").lower()
         if "raspberry" in hostname_lower or "rpi" in hostname_lower:
             model = "Raspberry Pi"
         elif "iphone" in hostname_lower or "ipad" in hostname_lower:
@@ -609,17 +790,21 @@ class TechnitiumDHCPDeviceTracker(CoordinatorEntity, ScannerEntity):
             model = "Mac Computer"
         else:
             model = "Network Device"
-        
+
         return DeviceInfo(
             identifiers={(DOMAIN, device_id)},
             name=self._name,
             manufacturer=manufacturer,
             model=model,
-            via_device_id=self._server_device_id,  # Link to the TechnitiumDNS server device
-            configuration_url=None,  # Could add device management URL if available
+            via_device_id=self._server_device_id,
+            configuration_url=None,
         )
 
     @property
     def available(self):
-        """Return if the device tracker is available."""
-        return self.coordinator.last_update_success
+        """Return whether the coordinator has a current DHCP snapshot."""
+        return (
+            self.coordinator.data is not None
+            and self.coordinator.last_update_success
+        )
+

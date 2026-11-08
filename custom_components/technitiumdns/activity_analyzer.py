@@ -4,7 +4,7 @@ This module implements intelligent activity scoring that can distinguish between
 genuine user activity and automated background traffic patterns.
 """
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional, Tuple
 import re
 
@@ -17,6 +17,97 @@ from .const import (
 )
 
 _LOGGER = logging.getLogger(__name__)
+FUTURE_TIMESTAMP_TOLERANCE = timedelta(minutes=2)
+MIN_RECENT_ACTIVITY_QUERIES = 3
+RECENT_ACTIVITY_WINDOW_MINUTES = 30
+
+
+def _parse_timestamp(value):
+    """Return a timestamp as UTC, treating timezone-naive values as UTC."""
+    if isinstance(value, datetime):
+        parsed = value
+    elif isinstance(value, str):
+        try:
+            parsed = datetime.fromisoformat(value.replace('Z', '+00:00'))
+        except ValueError:
+            return None
+    else:
+        return None
+
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def _query_fields(log):
+    """Read DNS name and type from Technitium's flat or nested record shape."""
+    question = log.get('question')
+    if not isinstance(question, dict):
+        question = {}
+    qname = log.get('qname') or question.get('name')
+    qtype = log.get('qtype') or question.get('type')
+    return (
+        qname if isinstance(qname, str) else '',
+        qtype if isinstance(qtype, str) else '',
+    )
+
+
+def _timestamp_from_log(log):
+    """Return the first valid supported timestamp field as UTC."""
+    for field in ('timestamp', 'time', 'dateTime'):
+        timestamp = _parse_timestamp(log.get(field))
+        if timestamp is not None:
+            return timestamp
+    return None
+
+
+def _normalize_log_entry(log):
+    """Return a canonical analysis record, or None for malformed input."""
+    if not isinstance(log, dict):
+        return None
+
+    client_ip = (
+        log.get('clientIpAddress')
+        or log.get('client_ip')
+        or log.get('clientIp')
+        or log.get('ip')
+    )
+    if not isinstance(client_ip, str) or not client_ip:
+        return None
+
+    timestamp = _timestamp_from_log(log)
+    if timestamp is None:
+        return None
+
+    qname, qtype = _query_fields(log)
+    protocol = log.get('protocol')
+    if not isinstance(protocol, str) or not protocol:
+        protocol = 'UNKNOWN'
+
+    normalized = dict(log)
+    normalized.update(
+        {
+            'clientIpAddress': client_ip,
+            'protocol': protocol.upper(),
+            'qname': qname,
+            'qtype': qtype,
+            'question': {'name': qname, 'type': qtype},
+            '_timestamp': timestamp,
+        }
+    )
+    return normalized
+
+
+def _timestamps_from_logs(device_logs):
+    """Return parsed UTC timestamps, reusing values normalized by the filter."""
+    timestamps = []
+    for log in device_logs:
+        timestamp = log.get('_timestamp')
+        if not isinstance(timestamp, datetime):
+            timestamp = _timestamp_from_log(log)
+        if timestamp is not None:
+            timestamps.append(timestamp)
+    return timestamps
 
 
 class SmartActivityAnalyzer:
@@ -45,17 +136,61 @@ class SmartActivityAnalyzer:
         """
         # Filter logs for this device within analysis window
         device_logs = self._filter_device_logs(dns_logs, ip_address)
-        
+        analysis_now = datetime.now(timezone.utc)
+        recent_cutoff = analysis_now - timedelta(
+            minutes=RECENT_ACTIVITY_WINDOW_MINUTES
+        )
+        recent_logs = [
+            log for log in device_logs
+            if isinstance(log.get('_timestamp'), datetime)
+            and log['_timestamp'] >= recent_cutoff
+        ]
+        timestamps = _timestamps_from_logs(device_logs)
+        newest_query_age = (
+            max(0.0, (analysis_now - max(timestamps)).total_seconds() / 60)
+            if timestamps else None
+        )
+        activity_evidence = {
+            'minimum_recent_queries': MIN_RECENT_ACTIVITY_QUERIES,
+            'recent_window_minutes': RECENT_ACTIVITY_WINDOW_MINUTES,
+            'observed_recent_queries': len(recent_logs),
+            'observed_window_queries': len(device_logs),
+            'newest_query_age_minutes': (
+                round(newest_query_age, 1) if newest_query_age is not None else None
+            ),
+        }
+
         if not device_logs:
             return {
-                'activity_score': 0,
-                'is_actively_used': False,
+                'status': 'no_data',
+                'activity_score': None,
+                'is_actively_used': None,
                 'total_queries': 0,
+                'recent_queries': 0,
                 'background_ratio': 0.0,
                 'protocol_diversity': 0,
                 'query_rate': 0.0,
-                'analysis_summary': 'No DNS activity found'
+                'activity_evidence': activity_evidence,
+                'analysis_summary': 'No DNS activity found in the analysis window',
             }
+
+        if len(recent_logs) < MIN_RECENT_ACTIVITY_QUERIES:
+            return {
+                'status': 'insufficient_evidence',
+                'activity_score': None,
+                'is_actively_used': None,
+                'total_queries': len(device_logs),
+                'recent_queries': len(recent_logs),
+                'activity_evidence': activity_evidence,
+                'analysis_summary': (
+                    'Insufficient recent DNS evidence: '
+                    f'{len(recent_logs)}/{MIN_RECENT_ACTIVITY_QUERIES} queries '
+                    f'in the last {RECENT_ACTIVITY_WINDOW_MINUTES} minutes'
+                ),
+            }
+
+        # Scores describe only the recent evidence that passed the confidence gate.
+        device_logs = recent_logs
         
         # Calculate various activity metrics
         total_queries = len(device_logs)
@@ -95,17 +230,13 @@ class SmartActivityAnalyzer:
         
         is_actively_used = activity_score >= self.score_threshold
         
-        _LOGGER.debug(
-            "Device %s activity analysis: score=%.1f, queries=%d, bg_ratio=%.2f, "
-            "protocols=%d, rate=%.1f/min, active=%s",
-            ip_address, activity_score, total_queries, background_ratio, 
-            protocol_diversity, query_rate, is_actively_used
-        )
-        
         return {
+            'status': 'analyzed',
             'activity_score': round(activity_score, 1),
             'is_actively_used': is_actively_used,
             'total_queries': total_queries,
+            'recent_queries': total_queries,
+            'activity_evidence': activity_evidence,
             'background_ratio': round(background_ratio, 3),
             'protocol_diversity': protocol_diversity,
             'query_rate': round(query_rate, 2),
@@ -121,69 +252,20 @@ class SmartActivityAnalyzer:
     
     def _filter_device_logs(self, dns_logs: List[Dict], ip_address: str) -> List[Dict]:
         """Filter DNS logs for a specific device within the analysis window."""
-        from datetime import timezone
-        
-        # Use UTC time for consistent comparison with log timestamps
-        cutoff_time = datetime.now(timezone.utc) - timedelta(minutes=self.analysis_window_minutes)
-        
-        # Debug: Log the first few entries to understand structure
-        if ip_address == "192.168.1.200" and dns_logs:
-            _LOGGER.debug("DNS logs structure debug for %s:", ip_address)
-            for i, log in enumerate(dns_logs[:3]):
-                _LOGGER.debug("Log entry %d: %s", i, log)
-                _LOGGER.debug("Client IP field: %s", log.get('clientIpAddress'))
-                _LOGGER.debug("Available keys: %s", list(log.keys()))
+        now = datetime.now(timezone.utc)
+        cutoff_time = now - timedelta(minutes=self.analysis_window_minutes)
+        latest_allowed_time = now + FUTURE_TIMESTAMP_TOLERANCE
         
         device_logs = []
-        total_checked = 0
-        ip_matches = 0
-        time_matches = 0
-        
         for log in dns_logs:
-            total_checked += 1
-            
-            # Check if log is for this device - try different possible field names
-            client_ip = log.get('clientIpAddress') or log.get('client_ip') or log.get('clientIp') or log.get('ip')
-            
-            if client_ip == ip_address:
-                ip_matches += 1
-                
-                # Check if log is within time window
-                log_time_str = log.get('timestamp') or log.get('time') or log.get('dateTime')
-                if log_time_str:
-                    try:
-                        # Parse timestamp with proper timezone handling
-                        if log_time_str.endswith('Z'):
-                            log_time = datetime.fromisoformat(log_time_str.replace('Z', '+00:00'))
-                        else:
-                            log_time = datetime.fromisoformat(log_time_str)
-                            
-                        # Ensure we're comparing in UTC
-                        if log_time.tzinfo is None:
-                            log_time = log_time.replace(tzinfo=timezone.utc)
-                        
-                        if log_time >= cutoff_time:
-                            device_logs.append(log)
-                            time_matches += 1
-                    except (ValueError, AttributeError) as e:
-                        if ip_address == "192.168.1.200":
-                            _LOGGER.debug("Time parsing error for %s: %s", log_time_str, e)
-                        continue
-        
-        if ip_address == "192.168.1.200":
-            _LOGGER.debug("Filter results for %s: total_logs=%d, ip_matches=%d, time_matches=%d, final_logs=%d", 
-                         ip_address, total_checked, ip_matches, time_matches, len(device_logs))
-            _LOGGER.debug("Analysis cutoff time (UTC): %s, analysis window: %d minutes", 
-                         cutoff_time.isoformat(), self.analysis_window_minutes)
-            
-            # Show sample of time-filtered logs for debugging
-            if device_logs:
-                _LOGGER.debug("Sample device logs found for %s:", ip_address)
-                for i, log in enumerate(device_logs[:3]):
-                    _LOGGER.debug("  Log %d: %s -> %s", i, log.get('timestamp'), log.get('qname'))
-                    
-        return device_logs
-                    
+            normalized = _normalize_log_entry(log)
+            if normalized is None:
+                continue
+
+            if normalized['clientIpAddress'] == ip_address:
+                log_time = normalized['_timestamp']
+                if cutoff_time <= log_time <= latest_allowed_time:
+                    device_logs.append(normalized)
         return device_logs
     
     def _calculate_background_score(self, device_logs: List[Dict]) -> float:
@@ -213,7 +295,8 @@ class SmartActivityAnalyzer:
             
         protocol_scores = []
         for log in device_logs:
-            protocol = log.get('protocol', 'UDP').upper()
+            protocol = log.get('protocol')
+            protocol = protocol.upper() if isinstance(protocol, str) else 'UDP'
             weight = PROTOCOL_WEIGHTS.get(protocol, 0.5)
             protocol_scores.append(weight)
         
@@ -230,11 +313,10 @@ class SmartActivityAnalyzer:
         query_types = set()
         
         for log in device_logs:
-            domain = log.get('question', {}).get('name', '')
+            domain, q_type = _query_fields(log)
             if domain:
                 domains.add(domain.lower())
                 
-            q_type = log.get('question', {}).get('type', '')
             if q_type:
                 query_types.add(q_type)
         
@@ -258,7 +340,7 @@ class SmartActivityAnalyzer:
             
         queries_per_minute = total_queries / time_span
         
-        # Optimal range: 0.5-5 queries per minute
+        # Preferred query-rate range: 0.5-5 queries per minute
         # Too low = likely background, too high = likely automated
         if 0.5 <= queries_per_minute <= 5:
             score = 100
@@ -275,23 +357,7 @@ class SmartActivityAnalyzer:
         if len(device_logs) < 3:
             return 50  # Not enough data for timing analysis
             
-        from datetime import timezone
-        
-        # Parse timestamps and calculate intervals
-        timestamps = []
-        for log in device_logs:
-            time_str = log.get('timestamp')
-            if time_str:
-                try:
-                    if time_str.endswith('Z'):
-                        timestamp = datetime.fromisoformat(time_str.replace('Z', '+00:00'))
-                    else:
-                        timestamp = datetime.fromisoformat(time_str)
-                        if timestamp.tzinfo is None:
-                            timestamp = timestamp.replace(tzinfo=timezone.utc)
-                    timestamps.append(timestamp)
-                except (ValueError, AttributeError):
-                    continue
+        timestamps = _timestamps_from_logs(device_logs)
         
         if len(timestamps) < 3:
             return 50
@@ -318,8 +384,7 @@ class SmartActivityAnalyzer:
         else:
             cv = 0
             
-        # Human activity tends to be more irregular
-        # Automated activity tends to be very regular or very random
+        # Irregular timing is a weak signal, not person detection.
         if 0.3 <= cv <= 2.0:  # Sweet spot for human-like irregularity
             score = 100
         elif cv < 0.3:  # Too regular (automated)
@@ -331,12 +396,12 @@ class SmartActivityAnalyzer:
     
     def _is_background_query(self, log: Dict) -> bool:
         """Determine if a DNS query is likely background/automated traffic."""
-        domain = log.get('question', {}).get('name', '').lower()
-        query_type = log.get('question', {}).get('type', '')
+        domain, query_type = _query_fields(log)
+        domain = _normalize_dns_name(domain)
         
         # Check against known background domains
         for bg_domain in BACKGROUND_DOMAINS:
-            if bg_domain in domain:
+            if _matches_background_domain(domain, bg_domain):
                 return True
         
         # Check query type weight (lower weight = more likely background)
@@ -368,22 +433,7 @@ class SmartActivityAnalyzer:
     
     def _get_time_span_minutes(self, device_logs: List[Dict]) -> float:
         """Get time span of logs in minutes."""
-        from datetime import timezone
-        
-        timestamps = []
-        for log in device_logs:
-            time_str = log.get('timestamp')
-            if time_str:
-                try:
-                    if time_str.endswith('Z'):
-                        timestamp = datetime.fromisoformat(time_str.replace('Z', '+00:00'))
-                    else:
-                        timestamp = datetime.fromisoformat(time_str)
-                        if timestamp.tzinfo is None:
-                            timestamp = timestamp.replace(tzinfo=timezone.utc)
-                    timestamps.append(timestamp)
-                except (ValueError, AttributeError):
-                    continue
+        timestamps = _timestamps_from_logs(device_logs)
         
         if len(timestamps) < 2:
             return 1.0  # Default to 1 minute for single queries
@@ -396,16 +446,49 @@ class SmartActivityAnalyzer:
                                  bg_ratio: float, protocols: int) -> str:
         """Generate human-readable summary of activity analysis."""
         if score >= 75:
-            activity_level = "High user activity"
+            activity_level = "High DNS activity score"
         elif score >= 50:
-            activity_level = "Moderate user activity"
+            activity_level = "Moderate DNS activity score"
         elif score >= 25:
-            activity_level = "Low user activity"
+            activity_level = "Low DNS activity score"
         else:
-            activity_level = "Mostly background traffic"
+            activity_level = "Mostly classified background queries"
             
         return (f"{activity_level} - {queries} queries, "
                 f"{bg_ratio:.0%} background, {protocols} protocols")
+
+
+def _normalize_dns_name(domain: str) -> str:
+    """Normalize a DNS name for case- and root-dot-insensitive comparison."""
+    return domain.strip().lower().rstrip('.')
+
+
+def _matches_background_domain(domain: str, pattern: str) -> bool:
+    """Match configured DNS suffixes, label prefixes, or single-label markers."""
+    normalized_domain = _normalize_dns_name(domain)
+    normalized_pattern = pattern.strip().lower()
+    if not normalized_domain or not normalized_pattern or '/' in normalized_pattern:
+        return False
+
+    labels = normalized_domain.split('.')
+    if normalized_pattern.endswith('.'):
+        prefix = normalized_pattern[:-1]
+        return bool(prefix) and any(
+            label == prefix for label in labels[:-1]
+        )
+
+    normalized_pattern = normalized_pattern.rstrip('.')
+    if '.' in normalized_pattern:
+        return (
+            normalized_domain == normalized_pattern
+            or normalized_domain.endswith(f'.{normalized_pattern}')
+        )
+
+    return any(
+        label == normalized_pattern
+        or (normalized_pattern.endswith('-') and label.startswith(normalized_pattern))
+        for label in labels
+    )
 
 
 def analyze_batch_device_activity(dns_logs: List[Dict], device_ips: List[str],
@@ -429,27 +512,27 @@ def analyze_batch_device_activity(dns_logs: List[Dict], device_ips: List[str],
             analysis = analyzer.analyze_device_activity(dns_logs, ip_address)
             results[ip_address] = analysis
             
-            _LOGGER.debug(
-                "Device %s: activity_score=%.1f, active=%s, summary='%s'",
-                ip_address, analysis['activity_score'], 
-                analysis['is_actively_used'], analysis['analysis_summary']
-            )
-            
         except Exception as e:
             _LOGGER.error("Error analyzing activity for device %s: %s", ip_address, e)
             results[ip_address] = {
-                'activity_score': 0,
-                'is_actively_used': False,
+                'status': 'error',
+                'error': str(e),
                 'total_queries': 0,
-                'background_ratio': 0.0,
-                'protocol_diversity': 0,
-                'query_rate': 0.0,
                 'analysis_summary': f'Analysis error: {e}'
             }
     
     # Log summary statistics
-    active_devices = sum(1 for result in results.values() if result['is_actively_used'])
-    avg_score = sum(result['activity_score'] for result in results.values()) / len(results) if results else 0
+    successful_results = [
+        result for result in results.values() if result.get('status') == 'analyzed'
+    ]
+    active_devices = sum(
+        1 for result in successful_results if result['is_actively_used'] is True
+    )
+    avg_score = (
+        sum(result['activity_score'] for result in successful_results)
+        / len(successful_results)
+        if successful_results else 0
+    )
     
     _LOGGER.info(
         "Batch analysis complete: %d/%d devices actively used, average score: %.1f",

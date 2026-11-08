@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -12,12 +12,33 @@ if TYPE_CHECKING:
 _LOGGER = logging.getLogger(__name__)
 
 
+def _parse_timestamp(value: Any) -> datetime | None:
+    """Parse an ISO timestamp or datetime as timezone-aware UTC."""
+    if isinstance(value, datetime):
+        parsed = value
+    elif isinstance(value, str) and value:
+        try:
+            parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError:
+            return None
+    else:
+        return None
+
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+class DNSLogsUnavailableError(RuntimeError):
+    """Raised when DNS logs are unavailable and the caller requests errors."""
+
+
 def _entry_to_dict(entry: Any) -> dict[str, Any]:
     """Convert a QueryLogEntry (or dict) to the dict shape activity_analyzer expects."""
     if isinstance(entry, dict):
         return entry
     raw = getattr(entry, "raw", None)
-    if raw:
+    if isinstance(raw, dict):
         return raw
     return {
         "clientIpAddress": getattr(entry, "client_ip_address", None),
@@ -119,17 +140,23 @@ async def get_last_seen_for_multiple_ips(
     client: AsyncClient,
     ip_addresses: list[str],
     hours_back: int = 24,
+    *,
+    raise_on_error: bool = False,
+    lease_obtained_by_ip: dict[str, datetime] | None = None,
 ) -> dict[str, str]:
-    """Return {ip_address: last_seen_iso_timestamp} from DNS query logs."""
+    """Return each IP's newest valid DNS timestamp after its current lease start."""
     if not ip_addresses:
         return {}
 
     api_test = await test_dns_logs_api(client)
     if not api_test.get("available", False):
+        message = api_test.get("message", "Unknown error")
         _LOGGER.warning(
             "DNS logs API is not available: %s",
-            api_test.get("message", "Unknown error"),
+            message,
         )
+        if raise_on_error:
+            raise DNSLogsUnavailableError(message)
         return {}
 
     end_time = datetime.utcnow()
@@ -148,39 +175,58 @@ async def get_last_seen_for_multiple_ips(
         )
 
         target_ips = set(ip_addresses)
-        last_seen_times: dict[str, str] = {}
+        lease_starts = {
+            ip_address: _parse_timestamp(lease_obtained)
+            for ip_address, lease_obtained in (lease_obtained_by_ip or {}).items()
+        }
+        last_seen_times: dict[str, datetime] = {}
 
         for entry in entries:
             client_ip = entry.get("clientIpAddress")
-            timestamp = entry.get("timestamp")
-            if client_ip and timestamp and client_ip in target_ips:
-                if client_ip not in last_seen_times:
-                    last_seen_times[client_ip] = timestamp
-                    if len(last_seen_times) == len(target_ips):
-                        break
+            timestamp = _parse_timestamp(entry.get("timestamp"))
+            if not client_ip or client_ip not in target_ips or timestamp is None:
+                continue
+
+            lease_start = lease_starts.get(client_ip)
+            if lease_start is not None and timestamp < lease_start:
+                continue
+
+            previous_timestamp = last_seen_times.get(client_ip)
+            if previous_timestamp is None or timestamp > previous_timestamp:
+                last_seen_times[client_ip] = timestamp
 
         _LOGGER.info(
             "Batch DNS log query completed: found activity for %d/%d devices",
             len(last_seen_times),
             len(ip_addresses),
         )
-        return last_seen_times
+        return {
+            ip_address: timestamp.isoformat()
+            for ip_address, timestamp in last_seen_times.items()
+        }
     except Exception as err:
         _LOGGER.error("Error in batch DNS log query: %s", err)
+        if raise_on_error:
+            raise
         return {}
 
 
 async def get_dns_logs_for_analysis(
     client: AsyncClient,
     hours_back: int = 2,
+    *,
+    raise_on_error: bool = False,
 ) -> list[dict[str, Any]]:
     """Return DNS log entries as dicts for smart activity analysis."""
     api_test = await test_dns_logs_api(client)
     if not api_test.get("available", False):
+        message = api_test.get("message", "Unknown error")
         _LOGGER.warning(
             "DNS logs API is not available for activity analysis: %s",
-            api_test.get("message", "Unknown error"),
+            message,
         )
+        if raise_on_error:
+            raise DNSLogsUnavailableError(message)
         return []
 
     end_time = datetime.utcnow()
@@ -197,4 +243,6 @@ async def get_dns_logs_for_analysis(
         return entries
     except Exception as err:
         _LOGGER.error("Error getting DNS logs for activity analysis: %s", err)
+        if raise_on_error:
+            raise
         return []
