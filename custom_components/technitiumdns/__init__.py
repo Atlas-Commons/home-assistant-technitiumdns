@@ -1,6 +1,7 @@
 """TechnitiumDNS integration."""
 
 import logging
+import re
 import voluptuous as vol
 
 from homeassistant import core
@@ -203,7 +204,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Set up options flow listener to handle configuration changes
     entry.async_on_unload(entry.add_update_listener(async_update_options))
 
-    # Register cleanup service for manual entity cleanup
+    # Register the report service for manual orphan scans
     await async_register_services(hass)
 
     _LOGGER.info("TechnitiumDNS integration setup completed for entry %s", entry.entry_id)
@@ -215,92 +216,30 @@ async def async_register_services(hass: HomeAssistant):
         return  # Service already registered
 
     async def handle_cleanup_devices(call):
-        """Handle cleanup_devices service call."""
+        """Report DHCP entities that no longer match current coordinator data."""
         config_entry_id = call.data.get("config_entry_id")
-        _LOGGER.debug("Cleanup service called with config_entry_id: %s", config_entry_id)
-
+        domain_data = hass.data.get(DOMAIN, {})
         if config_entry_id:
-            # Clean up specific entry
-            _LOGGER.debug("Cleaning up specific entry: %s", config_entry_id)
-            entry_data = hass.data.get(DOMAIN, {}).get(config_entry_id)
-            if entry_data:
-                # Get the actual config entry to check if DHCP is enabled
-                config_entry = None
-                for entry in hass.config_entries.async_entries(DOMAIN):
-                    if entry.entry_id == config_entry_id:
-                        config_entry = entry
-                        break
-
-                if config_entry:
-                    dhcp_enabled = config_entry.options.get("enable_dhcp_tracking", False)
-                    _LOGGER.debug("Config entry %s DHCP tracking enabled: %s", config_entry_id, dhcp_enabled)
-                    _LOGGER.debug("Config entry options: %s", config_entry.options)
-
-                _LOGGER.debug("Found entry data for %s: %s", config_entry_id, list(entry_data.keys()))
-                dhcp_coordinator = entry_data.get("coordinators", {}).get("dhcp")
-                _LOGGER.debug("DHCP coordinator status for %s: coordinator=%s, has_data=%s",
-                            config_entry_id, dhcp_coordinator is not None,
-                            dhcp_coordinator.data is not None if dhcp_coordinator else False)
-                if dhcp_coordinator and dhcp_coordinator.data:
-                    # Normalize MAC addresses to uppercase with colons for consistent comparison
-                    current_macs = set()
-                    for lease in dhcp_coordinator.data:
-                        mac = lease.get("mac_address")
-                        if mac:
-                            normalized_mac = normalize_mac_address(mac)
-                            current_macs.add(normalized_mac)
-                            _LOGGER.debug("Normalized MAC %s -> %s", mac, normalized_mac)
-                    _LOGGER.debug("Found %d current MAC addresses for entry %s: %s",
-                                len(current_macs), config_entry_id, sorted(current_macs))
-                    await async_cleanup_orphaned_entities(hass, config_entry_id, current_macs)
-                    _LOGGER.info("Manual cleanup completed for entry %s", config_entry_id)
-                else:
-                    _LOGGER.warning("No DHCP coordinator found for entry %s (coordinator: %s, data: %s). "
-                                  "DHCP tracking may not be enabled for this entry.",
-                                  config_entry_id, dhcp_coordinator is not None,
-                                  dhcp_coordinator.data if dhcp_coordinator else None)
-                    # Still attempt cleanup with empty MAC set to remove any orphaned entities
-                    _LOGGER.info("Attempting cleanup with empty device set to remove any orphaned DHCP entities")
-                    await async_cleanup_orphaned_entities(hass, config_entry_id, set())
-            else:
-                _LOGGER.error("Config entry %s not found. Available entries: %s",
-                            config_entry_id, list(hass.data.get(DOMAIN, {}).keys()))
+            if config_entry_id not in domain_data:
+                _LOGGER.error("Config entry %s is not loaded; no entity report was produced", config_entry_id)
+                return
+            entries_to_scan = {config_entry_id: domain_data[config_entry_id]}
         else:
-            # Clean up all entries
-            domain_data = hass.data.get(DOMAIN, {})
-            _LOGGER.debug("Cleaning up all entries. Found %d total entries: %s",
-                        len(domain_data), list(domain_data.keys()))
-            cleaned_entries = 0
-            for entry_id, entry_data in domain_data.items():
-                _LOGGER.debug("Processing entry %s with data keys: %s", entry_id, list(entry_data.keys()))
-                dhcp_coordinator = entry_data.get("coordinators", {}).get("dhcp")
-                _LOGGER.debug("DHCP coordinator status for %s: coordinator=%s, has_data=%s",
-                            entry_id, dhcp_coordinator is not None,
-                            dhcp_coordinator.data is not None if dhcp_coordinator else False)
-                if dhcp_coordinator and dhcp_coordinator.data:
-                    # Normalize MAC addresses to uppercase with colons for consistent comparison
-                    current_macs = set()
-                    for lease in dhcp_coordinator.data:
-                        mac = lease.get("mac_address")
-                        if mac:
-                            normalized_mac = normalize_mac_address(mac)
-                            current_macs.add(normalized_mac)
-                            _LOGGER.debug("Normalized MAC %s -> %s", mac, normalized_mac)
-                    _LOGGER.debug("Found %d current MAC addresses for entry %s: %s",
-                                len(current_macs), entry_id, sorted(current_macs))
-                    await async_cleanup_orphaned_entities(hass, entry_id, current_macs)
-                    _LOGGER.info("Manual cleanup completed for entry %s", entry_id)
-                    cleaned_entries += 1
-                else:
-                    _LOGGER.debug("Entry %s has no DHCP coordinator or data (coordinator: %s, data: %s). "
-                                "DHCP tracking may not be enabled for this entry.",
-                                entry_id, dhcp_coordinator is not None,
-                                dhcp_coordinator.data if dhcp_coordinator else None)
-                    # Still attempt cleanup with empty MAC set to remove any orphaned entities
-                    _LOGGER.debug("Attempting cleanup for entry %s with empty device set", entry_id)
-                    await async_cleanup_orphaned_entities(hass, entry_id, set())
-                    cleaned_entries += 1
-            _LOGGER.debug("Cleanup completed for %d out of %d entries", cleaned_entries, len(domain_data))
+            entries_to_scan = domain_data
+
+        for entry_id, entry_data in entries_to_scan.items():
+            coordinator = entry_data.get("coordinators", {}).get("dhcp")
+            current_macs = None
+            if coordinator is not None and coordinator.data is not None:
+                current_macs = {
+                    normalize_mac_address(lease["mac_address"])
+                    for lease in coordinator.data
+                    if lease.get("mac_address")
+                }
+
+            await async_cleanup_orphaned_entities(hass, entry_id, current_macs)
+
+        _LOGGER.info("DHCP entity orphan report completed for %d config entries", len(entries_to_scan))
 
     async def handle_get_dhcp_leases(call):
         """Handle get_dhcp_leases service call."""
@@ -349,8 +288,8 @@ async def async_register_services(hass: HomeAssistant):
                 len(leases_data) if leases_data else 0,
             )
 
-            if not leases_data:
-                _LOGGER.warning("No DHCP leases data returned from API")
+            if leases_data is None:
+                _LOGGER.warning("DHCP leases API returned no result")
                 return
 
             leases = [
@@ -460,97 +399,86 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         hass.data[DOMAIN].pop(entry.entry_id, None)
         return True
 
-async def async_cleanup_orphaned_entities(hass: HomeAssistant, entry_id: str, current_devices: set):
-    """Log information about devices that should be cleaned up.
+def dhcp_entity_mac(entity):
+    """Return a DHCP entity's MAC, an empty string for IP-only trackers, or None."""
+    if entity.platform != DOMAIN:
+        return None
 
-    Note: Instead of manually manipulating entity registry (which can cause issues),
-    we now rely on the coordinator update pattern to naturally handle entity lifecycle.
-    Device entities will become unavailable when their data is no longer in the coordinator,
-    and can be manually removed by the user if needed.
+    entity_domain = entity.entity_id.partition(".")[0]
+    unique_id = str(entity.unique_id)
+    if entity_domain == "device_tracker":
+        prefix = f"{DOMAIN}_device_tracker_"
+        if not unique_id.startswith(prefix):
+            return None
+        identifier = unique_id.removeprefix(prefix)
+        if re.fullmatch(r"[0-9a-f]{12}", identifier):
+            return normalize_mac_address(identifier)
+        if re.fullmatch(r"ip_(?:\d{1,3}_){3}\d{1,3}", identifier):
+            return ""
+        return None
+
+    if entity_domain == "sensor":
+        prefix = f"{DOMAIN}_dhcp_"
+        if not unique_id.startswith(prefix):
+            return None
+        match = re.fullmatch(r"([0-9a-f]{12})_[a-z0-9_]+", unique_id.removeprefix(prefix))
+        if match:
+            return normalize_mac_address(match.group(1))
+
+    return None
+
+
+async def async_cleanup_orphaned_entities(
+    hass: HomeAssistant, entry_id: str, current_devices: set[str] | None
+):
+    """Log a non-destructive report of DHCP entities missing from current data.
 
     Args:
         hass: Home Assistant instance
         entry_id: Config entry ID
-        current_devices: Set of MAC addresses for devices that should exist
+        current_devices: Current MAC addresses, or None when coordinator data is unavailable
     """
-    _LOGGER.info("Checking for orphaned entities for entry %s", entry_id)
-    _LOGGER.debug("Current devices that should exist: %s (%d total)", sorted(current_devices), len(current_devices))
-
     entity_registry = er.async_get(hass)
-
-    # Find all DHCP entities belonging to this integration
-    dhcp_entities = []
-    total_entities_checked = 0
-
-    for entity_id, entity in entity_registry.entities.items():
-        if entity.config_entry_id == entry_id:
-            total_entities_checked += 1
-
-            # Check if this is a DHCP device entity using the new standardized unique_id patterns
-            unique_id_str = str(entity.unique_id)
-            if ("_dhcp_device_" in unique_id_str or "_dhcp_sensor_" in unique_id_str or "_device_tracker_" in unique_id_str):
-                dhcp_entities.append((entity_id, entity))
-
-    _LOGGER.debug("Found %d DHCP entities out of %d total entities for this integration",
-                 len(dhcp_entities), total_entities_checked)
-
-    # Analyze which devices should be orphaned
     orphaned_entities = []
     current_entities = []
+    unknown_entities = []
 
-    for entity_id, entity in dhcp_entities:
-        mac_from_entity = None
-        unique_id_str = str(entity.unique_id)
+    for entity_id, entity in entity_registry.entities.items():
+        if entity.config_entry_id != entry_id:
+            continue
+        mac_address = dhcp_entity_mac(entity)
+        if mac_address is None:
+            continue
+        if current_devices is None or not mac_address:
+            unknown_entities.append((entity_id, entity.platform))
+        elif mac_address in current_devices:
+            current_entities.append((entity_id, mac_address, entity.platform))
+        else:
+            orphaned_entities.append((entity_id, mac_address, entity.platform))
 
-        # Extract MAC from standardized unique_id patterns
-        if "_dhcp_device_" in unique_id_str:
-            # Format: {DOMAIN}_dhcp_device_{mac_clean}
-            parts = unique_id_str.split("_dhcp_device_")
-            if len(parts) > 1:
-                mac_clean = parts[1]
-                # Convert MAC back to normalized format
-                if len(mac_clean) == 12:
-                    mac_formatted = ":".join([mac_clean[i:i+2] for i in range(0, 12, 2)]).upper()
-                    mac_from_entity = normalize_mac_address(mac_formatted)
+    _LOGGER.info(
+        "DHCP entity report for entry %s: %d tracker/sensor candidates",
+        entry_id,
+        len(orphaned_entities) + len(current_entities) + len(unknown_entities),
+    )
+    if current_devices is None:
+        _LOGGER.info("Current DHCP coordinator data is unavailable; orphan status is unknown")
 
-        elif "_dhcp_sensor_" in unique_id_str:
-            # Format: {DOMAIN}_dhcp_sensor_{mac_clean}_{sensor_type}
-            parts = unique_id_str.split("_dhcp_sensor_")
-            if len(parts) > 1:
-                mac_clean = parts[1].split("_")[0]  # Get MAC part before sensor type
-                if len(mac_clean) == 12:
-                    mac_formatted = ":".join([mac_clean[i:i+2] for i in range(0, 12, 2)]).upper()
-                    mac_from_entity = normalize_mac_address(mac_formatted)
-
-        elif "_device_tracker_" in unique_id_str:
-            # Format: {DOMAIN}_device_tracker_{mac_clean}
-            parts = unique_id_str.split("_device_tracker_")
-            if len(parts) > 1:
-                mac_clean = parts[1]
-                if len(mac_clean) == 12:
-                    mac_formatted = ":".join([mac_clean[i:i+2] for i in range(0, 12, 2)]).upper()
-                    mac_from_entity = normalize_mac_address(mac_formatted)
-
-        # Check if this entity should still exist
-        if mac_from_entity:
-            if mac_from_entity not in current_devices:
-                orphaned_entities.append((entity_id, mac_from_entity, entity.platform))
-            else:
-                current_entities.append((entity_id, mac_from_entity, entity.platform))
-
-    # Log information about orphaned entities (but don't remove them)
     if orphaned_entities:
-        _LOGGER.info("Found %d orphaned DHCP entities (devices no longer in coordinator data):", len(orphaned_entities))
-        for entity_id, mac, platform in orphaned_entities:
-            _LOGGER.info("  - %s (%s, MAC: %s) - will become unavailable automatically", entity_id, platform, mac)
-        _LOGGER.info("These entities will become 'unavailable' automatically when coordinator updates.")
-        _LOGGER.info("If you want to remove them permanently, you can do so manually from the HA UI.")
+        _LOGGER.info("Found %d DHCP entities whose MAC is absent from current coordinator data:", len(orphaned_entities))
+        for entity_id, mac, platform in orphaned_entities[:20]:
+            _LOGGER.info("  - %s (%s, MAC: %s)", entity_id, platform, mac)
+        if len(orphaned_entities) > 20:
+            _LOGGER.info("  - %d additional candidates omitted", len(orphaned_entities) - 20)
     else:
-        _LOGGER.info("No orphaned DHCP entities found - all entities match current coordinator data")
+        _LOGGER.info("No DHCP entity candidates were confirmed as orphaned")
 
     if current_entities:
-        _LOGGER.debug("Found %d current DHCP entities that should remain:", len(current_entities))
-        for entity_id, mac, platform in current_entities:
-            _LOGGER.debug("  - %s (%s, MAC: %s)", entity_id, platform, mac)
+        _LOGGER.debug("Found %d DHCP entities matching current coordinator data:", len(current_entities))
 
-    _LOGGER.info("Entity cleanup analysis completed - relying on coordinator pattern for entity lifecycle management")
+    if unknown_entities:
+        _LOGGER.info("Found %d DHCP entities with unknown orphan status:", len(unknown_entities))
+        for entity_id, platform in unknown_entities[:20]:
+            _LOGGER.info("  - %s (%s)", entity_id, platform)
+        if len(unknown_entities) > 20:
+            _LOGGER.info("  - %d additional candidates omitted", len(unknown_entities) - 20)

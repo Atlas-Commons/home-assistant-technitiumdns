@@ -93,30 +93,30 @@ class TechnitiumDNSButton(ButtonEntity):
 
 
 class TechnitiumDNSCleanupButton(ButtonEntity):
-    """Button to cleanup orphaned DHCP device entities."""
+    """Button to report DHCP entities absent from current coordinator data."""
 
     _attr_has_entity_name = True
 
     def __init__(self, server_name: str, entry_id: str, hass):
         """Initialize the cleanup button."""
         self._server_name = server_name
-        self._attr_name = "Cleanup Devices"
+        self._attr_name = "Scan for Orphaned DHCP Entities"
         self._entry_id = entry_id
         self._hass = hass
         self._attr_unique_id = f"{entry_id}_cleanup_devices"
-        self._attr_icon = "mdi:delete-sweep"
+        self._attr_icon = "mdi:text-box-search-outline"
 
     async def async_press(self) -> None:
-        """Handle the button press to cleanup orphaned entities."""
+        """Request a non-destructive orphan report."""
         try:
             await self._hass.services.async_call(
                 DOMAIN,
                 "cleanup_devices",
                 {"config_entry_id": self._entry_id},
             )
-            _LOGGER.info("Manual device cleanup triggered for %s", self._attr_name)
+            _LOGGER.info("DHCP entity orphan report requested for %s", self._attr_name)
         except Exception as err:
-            _LOGGER.error("Failed to trigger device cleanup: %s", err)
+            _LOGGER.error("Failed to request DHCP entity report: %s", err)
 
     @property
     def device_info(self):

@@ -1,174 +1,35 @@
-# TechnitiumDNS DHCP Device Tracking Implementation
+# TechnitiumDNS DHCP Tracking
 
-## Overview
-This implementation adds DHCP device tracking functionality to the TechnitiumDNS Home Assistant integration. The feature creates device tracker entities for devices connected to the Technitium DHCP server, allowing users to monitor device presence and connection status.
+## Defaults and Options
 
-## Features Added
+- DHCP device tracking is disabled until enabled in the integration options.
+- DNS log tracking defaults to off; Smart Activity Analysis defaults to on. Smart Activity Analysis cannot produce scores without DNS log tracking and sufficient query evidence.
+- The activity score threshold defaults to 55, and the analysis window defaults to 120 minutes.
+- DHCP update interval options are 30, 60, 180, 300, and 600 seconds.
+- Saving options reloads the config entry so platforms and coordinators use the new values.
 
-### 1. DHCP API Integration
-- Added `get_dhcp_leases()` method to fetch DHCP lease information
-- Added `get_dhcp_scopes()` method for future DHCP scope management
-- API calls follow the existing pattern with error handling and retries
+## Lease Tracking
 
-### 2. Device Tracker Platform
-- Created `device_tracker.py` implementing `DeviceTrackerEntity`
-- Tracks devices based on DHCP leases with active status
-- Shows connected/disconnected status based on lease presence
-- Displays IP addresses, MAC addresses, and hostnames
-- Includes additional lease information as entity attributes
+The coordinator polls Technitium's DHCP lease API at the configured interval. A connected tracker requires an IP address and hardware address. An explicit status other than `InUse` is excluded. When status is missing, a valid future lease expiry is required. Dynamic and Reserved lease types are both accepted; other types are retained rather than rejected. A lease with a valid `lease_expires` timestamp at or before the current UTC time is excluded. With explicit `InUse` status, missing or invalid expiry is not treated as evidence of expiration. Included lease diagnostics retain address status, type, and expiry.
 
-### 3. Configuration Options
-- Added options flow to enable/disable DHCP tracking
-- Configurable update interval (30s, 1min, 5min, 10min)
-- Options can be changed without requiring integration reload
-- Backward compatible with existing installations
-- **IP Address Filtering**: Include/exclude devices based on IP addresses
-- **Multiple filter modes**: Disabled, Include only, Exclude specified
-- **Flexible IP format support**: Single IPs, CIDR notation, IP ranges
+DNS activity and last-seen are attributed only when the current IP occurs on one eligible lease and that lease has a valid `lease_obtained` timestamp. Duplicate current IPs, missing/invalid lease start times, and their activity states are marked `ambiguous`; score, connected-use classification, stale state, and last-seen remain unknown. Records older than the current lease start are excluded from both smart activity and basic last-seen. Naive ISO timestamps and naive datetime values are interpreted as UTC; aware values are normalized to UTC.
 
-### 4. Integration Updates
-- Updated `__init__.py` to conditionally load device_tracker platform
-- Added options update listener for dynamic configuration changes
-- Updated manifest version to 2.5.2
-- Enhanced error handling and logging
-- **Added config entry migration from version 1 to 2**
-- **Bumped config flow version to handle new options safely**
+IP filtering is disabled by default. Include mode retains addresses matching configured ranges; exclude mode retains addresses outside those ranges. The parser accepts IPv4 single addresses, CIDR networks, and inclusive IPv4 ranges separated by commas, semicolons, or newlines. If filtering is enabled, an invalid address or range configuration, an empty range set, or more than 10,000 configured addresses fails closed.
 
-## Configuration
+Trackers are created for eligible leases at startup and added dynamically when new eligible leases appear. Their unique IDs use normalized MAC addresses. A tracker is connected while the matching MAC is present in the latest coordinator data and disconnected otherwise. Lease presence is only a connectivity proxy; it does not prove that the device is reachable. Per-device diagnostic sensors are created for discovered devices and may remain in Home Assistant after a lease disappears.
 
-### Initial Setup
-Users configure the integration as before. DHCP tracking is disabled by default.
+## DNS Activity
 
-### Enabling DHCP Tracking
-1. Go to Settings > Devices & Services > TechnitiumDNS
-2. Click "Configure" 
-3. Enable "Enable DHCP Device Tracking"
-4. Set desired update interval
-5. Save configuration
+When DNS log tracking and Smart Activity Analysis are enabled, a score is calculated only with at least 3 query-log records from the newest 30 minutes. Sparse, old, missing, or unavailable evidence leaves the score and `is_actively_used` unknown. The 120-minute analysis window does not change the 30-minute evidence gate. `activity_evidence` and `score_breakdown` are propagated to the Activity Summary sensor attributes.
 
-### Options Available
-- **Enable DHCP Device Tracking**: Boolean toggle
-- **DHCP Update Interval**: 30, 60, 300, or 600 seconds
-- **IP Filter Mode**: Choose filtering strategy (disabled/include/exclude)
-- **IP Addresses/Ranges**: Specify IPs to include or exclude
+The score and boolean classification are heuristics over observed DNS records. They do not establish device reachability, human presence, or the cause of queries, and do not guarantee elimination of false positives or false negatives.
 
-## Device Tracker Behavior
+## DHCP Entity Orphan Report
 
-### Device Discovery
-- Polls DHCP API at configured interval
-- Only tracks devices with active "Dynamic" leases in "InUse" status
-- Creates device tracker entities for each active lease
-- Uses MAC address as primary identifier when available
-- **Applies IP filtering based on user configuration**
+The `technitiumdns.cleanup_devices` service and **Scan for Orphaned DHCP Entities** button request a non-destructive scan. It checks entities owned by the selected config entry and integration platform, recognizing tracker IDs shaped like `technitiumdns_device_tracker_<12-hex-MAC>` and per-device sensor IDs shaped like `technitiumdns_dhcp_<12-hex-MAC>_<sensor-field>`; IP-only tracker IDs are also identified. Reports include counts and up to 20 individual entries per category.
 
-### Device Information
-- **Name**: Hostname if available, otherwise generated from MAC address
-- **Unique ID**: Based on MAC address or IP address
-- **Status**: Connected when lease is active, disconnected when lease expires
-- **Attributes**: 
-  - IP address
-  - MAC address  
-  - Hostname
-  - Client ID
-  - Lease expiration time
-  - Lease obtained time
-  - DHCP scope
+The scan logs MAC-based candidates that are absent from current coordinator data. IP-only trackers cannot be compared to the MAC set, and unavailable coordinator data makes orphan status unknown. No entity or device registry entries are removed or modified. See [ENTITY_CLEANUP.md](ENTITY_CLEANUP.md) for the scan details.
 
-### Device Registry
-- Each tracked device appears as a separate device in Home Assistant
-- Devices are linked to the main TechnitiumDNS server device
-- Device information updates automatically as leases change
+## DHCP Leases Service
 
-## API Endpoints Used
-
-### DHCP Leases
-```
-GET /api/dhcp/leases/list?token={token}
-```
-Returns list of all DHCP leases with status information.
-
-### Expected Response Format
-```json
-{
-  "status": "ok",
-  "response": {
-    "leases": [
-      {
-        "address": "192.168.1.100",
-        "type": "Dynamic",
-        "addressStatus": "InUse", 
-        "hardwareAddress": "AA:BB:CC:DD:EE:FF",
-        "hostName": "device-name",
-        "clientIdentifier": "client-id",
-        "leaseExpires": "2025-06-27T12:00:00Z",
-        "leaseObtained": "2025-06-27T11:00:00Z",
-        "scope": "192.168.1.0/24"
-      }
-    ]
-  }
-}
-```
-
-## Translation Support
-
-### Added Strings
-- Options flow title and descriptions
-- DHCP tracking enable/disable labels
-- Update interval selection labels
-
-### Languages Updated
-- English (en.json)
-- German (de.json) 
-- Spanish (es.json)
-- French (fr.json)
-- Italian (it.json)
-- Framework in place for other languages
-
-## Backward Compatibility
-- Existing installations continue to work without changes
-- DHCP tracking is opt-in via options
-- No changes to existing sensors, switches, or buttons
-- Graceful degradation if DHCP API is not available
-- **Automatic migration from config version 1 to 2**
-- **Safe default values for new options during migration**
-
-## Error Handling
-- API connection failures are logged but don't break existing functionality
-- Invalid or missing DHCP data is handled gracefully
-- Configuration validation prevents invalid settings
-- Coordinator pattern ensures proper data flow and error recovery
-
-## Future Enhancements
-- DHCP scope management
-- Static lease configuration
-- Wake-on-LAN integration
-- Device hostname management
-- Additional DHCP statistics sensors
-
-## Files Modified/Added
-
-### New Files
-- `device_tracker.py` - Main device tracker implementation
-
-### Modified Files
-- `__init__.py` - Added device_tracker platform loading and options listener
-- `api.py` - Added DHCP API methods
-- `config_flow.py` - Added options flow for DHCP settings
-- `const.py` - Added DHCP-related constants
-- `manifest.json` - Version bump to 2.5.2
-- `strings.json` - Added options flow strings
-- `translations/en.json` - Added English translations
-- `translations/de.json` - Added German translations
-- `translations/es.json` - Added Spanish translations
-- `translations/fr.json` - Added French translations
-- `translations/it.json` - Added Italian translations
-- `README.md` - Updated documentation
-
-## Testing Recommendations
-1. Test with active DHCP server and various device types
-2. Verify device tracking works with and without hostnames
-3. Test options flow configuration changes
-4. Verify backward compatibility with existing installations
-5. Test API error handling and recovery
-6. Validate device tracker entities appear correctly in Home Assistant
-7. Test different update intervals for performance impact
+The `technitiumdns.get_dhcp_leases` service fires a `technitiumdns_dhcp_leases_retrieved` event containing the filtered lease data. By default, only leases with `addressStatus` equal to `InUse` are included. Set `include_inactive: true` to include other statuses, or provide `filter_scope` to select a DHCP scope. A successful empty API list fires the event with `leases: []` and `total_leases: 0`; a `None` result or raised API error does not.
