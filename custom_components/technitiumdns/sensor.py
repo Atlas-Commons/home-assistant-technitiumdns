@@ -45,8 +45,6 @@ async def _create_device_sensors(leases, dhcp_coordinator, server_name, entry_id
         else:
             device_name = f"Unknown_Device_{ip_address}"
 
-        _LOGGER.info("Creating diagnostic sensors for device: %s (MAC: %s, IP: %s)", device_name, mac_address, ip_address)
-
         diagnostic_sensors = [
             TechnitiumDHCPDeviceIPSensor(dhcp_coordinator, mac_address, server_name, entry_id, device_name),
             TechnitiumDHCPDeviceMaCSensor(dhcp_coordinator, mac_address, server_name, entry_id, device_name),
@@ -62,8 +60,6 @@ async def _create_device_sensors(leases, dhcp_coordinator, server_name, entry_id
         ]
 
         device_sensors.extend(diagnostic_sensors)
-        _LOGGER.info("Created %d diagnostic sensors for device %s", len(diagnostic_sensors), device_name)
-
     return device_sensors
 
 async def async_setup_entry(hass, entry, async_add_entities):
@@ -106,7 +102,6 @@ async def async_setup_entry(hass, entry, async_add_entities):
             device_sensors_created = False
             if dhcp_coordinator.data:
                 _LOGGER.info("DHCP coordinator has %d devices, creating diagnostic sensors", len(dhcp_coordinator.data))
-                _LOGGER.debug("DHCP coordinator device MACs: %s", [lease.get("mac_address") for lease in dhcp_coordinator.data])
                 device_sensors = await _create_device_sensors(
                     dhcp_coordinator.data,
                     dhcp_coordinator,
@@ -116,8 +111,6 @@ async def async_setup_entry(hass, entry, async_add_entities):
                 sensors.extend(device_sensors)
                 device_sensors_created = True
                 _LOGGER.info("Created %d device diagnostic sensors from coordinator data", len(device_sensors))
-            else:
-                _LOGGER.debug("DHCP coordinator has no data yet: %s", dhcp_coordinator.data)
 
             # If no devices in coordinator data yet, rely on dynamic sensor manager
             # to create sensors when devices are discovered
@@ -241,7 +234,6 @@ class TechnitiumDNSCoordinator(DataUpdateCoordinator):
                     for domain in stats.top_blocked_domains[:5]
                 ],
             }
-            _LOGGER.debug("Data combined: %s", data)
             return data
         except Exception as err:
             _LOGGER.error("Error fetching data: %s", err)
@@ -270,7 +262,6 @@ class TechnitiumDNSSensor(CoordinatorEntity, SensorEntity):
     def state(self):
         """Return the state of the sensor."""
         state_value = self.coordinator.data.get(self._sensor_type)
-        _LOGGER.debug("State value for %s: %s", self._sensor_type, state_value)
 
         # Ensure the state value is within the allowable length
         if isinstance(state_value, str) and len(state_value) > 255:
@@ -352,20 +343,12 @@ class TechnitiumDHCPDeviceDiagnosticSensor(CoordinatorEntity, SensorEntity):
     def _get_device_data(self):
         """Get device data from coordinator."""
         if not self.coordinator.data:
-            _LOGGER.debug("Sensor %s: No coordinator data available", self._sensor_type)
             return None
 
-        _LOGGER.debug("Sensor %s: Looking for MAC %s in %d devices",
-                     self._sensor_type, self._mac_address, len(self.coordinator.data))
-
-        for i, device in enumerate(self.coordinator.data):
-            device_mac = device.get("mac_address", "")
-            _LOGGER.debug("Sensor %s: Device %d MAC: '%s' vs sensor MAC: '%s'", self._sensor_type, i, device_mac, self._mac_address)
-            if device_mac == self._mac_address:  # Both should now be in same format
-                _LOGGER.debug("Sensor %s: Found matching device data", self._sensor_type)
+        for device in self.coordinator.data:
+            if device.get("mac_address") == self._mac_address:
                 return device
 
-        _LOGGER.debug("Sensor %s: No matching device found for MAC %s", self._sensor_type, self._mac_address)
         return None
 
     @property
@@ -438,22 +421,7 @@ class TechnitiumDHCPDeviceDiagnosticSensor(CoordinatorEntity, SensorEntity):
     @property
     def available(self):
         """Return if the sensor is available."""
-        coordinator_success = self.coordinator.last_update_success
-
-        # If coordinator is successful but no data available yet, still mark as available
-        # This allows sensors to show up in UI even before device data is loaded
-        if coordinator_success:
-            device_data = self._get_device_data()
-            has_device_data = device_data is not None
-
-            _LOGGER.debug("Sensor %s availability check: coordinator_success=%s, has_device_data=%s",
-                         self._sensor_type, coordinator_success, has_device_data)
-
-            # Mark as available if coordinator is working, even if device data isn't available yet
-            return True
-
-        _LOGGER.debug("Sensor %s availability check: coordinator failed", self._sensor_type)
-        return False
+        return self.coordinator.last_update_success and self._get_device_data() is not None
 
     @property
     def should_poll(self):
@@ -562,11 +530,10 @@ class TechnitiumDHCPDeviceHostnameSensor(TechnitiumDHCPDeviceDiagnosticSensor):
     def native_value(self):
         """Return the hostname."""
         device_data = self._get_device_data()
-        if device_data:
-            # Normalize hostname to ensure it's always a string
-            hostname = normalize_hostname(device_data.get("hostname"))
-            return hostname if hostname else "Unknown"
-        return "Unknown"
+        if device_data is None:
+            return None
+        hostname = normalize_hostname(device_data.get("hostname"))
+        return hostname if hostname else "Unknown"
 
     @property
     def icon(self):
@@ -715,14 +682,18 @@ class TechnitiumDHCPDeviceIsStaleSensor(TechnitiumDHCPDeviceDiagnosticSensor):
         """Return whether the device is stale."""
         device_data = self._get_device_data()
         if device_data:
-            return "Yes" if device_data.get("is_stale", False) else "No"
+            is_stale = device_data.get("is_stale")
+            if is_stale is not None:
+                return "Yes" if is_stale else "No"
         return None
 
     @property
     def icon(self):
         """Return the icon for this sensor."""
         device_data = self._get_device_data()
-        if device_data and device_data.get("is_stale", False):
+        if not device_data or device_data.get("is_stale") is None:
+            return "mdi:account-question"
+        if device_data.get("is_stale"):
             return "mdi:account-off"
         return "mdi:account-check"
 
@@ -750,7 +721,7 @@ class TechnitiumDHCPDeviceMinutesSinceSeenSensor(TechnitiumDHCPDeviceDiagnosticS
     def native_value(self):
         """Return the minutes since last seen."""
         device_data = self._get_device_data()
-        return device_data.get("minutes_since_seen", 0) if device_data else None
+        return device_data.get("minutes_since_seen") if device_data else None
 
     @property
     def native_unit_of_measurement(self):
@@ -786,7 +757,7 @@ class TechnitiumDHCPDeviceActivityScoreSensor(TechnitiumDHCPDeviceDiagnosticSens
     def native_value(self):
         """Return the activity score."""
         device_data = self._get_device_data()
-        return device_data.get("activity_score", 0) if device_data else None
+        return device_data.get("activity_score") if device_data else None
 
     @property
     def native_unit_of_measurement(self):
@@ -799,6 +770,8 @@ class TechnitiumDHCPDeviceActivityScoreSensor(TechnitiumDHCPDeviceDiagnosticSens
         device_data = self._get_device_data()
         if device_data:
             score = device_data.get("activity_score", 0)
+            if score is None:
+                return "mdi:account-question"
             if score >= 75:
                 return "mdi:account-check"
             elif score >= 50:
@@ -813,7 +786,7 @@ class TechnitiumDHCPDeviceActivityScoreSensor(TechnitiumDHCPDeviceDiagnosticSens
     def extra_state_attributes(self):
         """Return additional attributes."""
         device_data = self._get_device_data()
-        if device_data and device_data.get("activity_score", 0) > 0:
+        if device_data:
             # Get score threshold from activity analyzer if available
             threshold = "N/A"
             if hasattr(self.coordinator, 'activity_analyzer') and self.coordinator.activity_analyzer:
@@ -821,9 +794,11 @@ class TechnitiumDHCPDeviceActivityScoreSensor(TechnitiumDHCPDeviceDiagnosticSens
                 # threshold = getattr(self.coordinator.activity_analyzer, 'score_threshold', "N/A")
 
             return {
+                "activity_status": device_data.get("activity_status", "unknown"),
+                "activity_evidence": device_data.get("activity_evidence"),
                 "activity_summary": device_data.get("activity_summary", ""),
-                "is_actively_used": device_data.get("is_actively_used", False),
-                "score_breakdown": device_data.get("score_breakdown", {}),
+                "is_actively_used": device_data.get("is_actively_used"),
+                "score_breakdown": device_data.get("score_breakdown"),
                 "threshold": threshold
             }
         return {}
@@ -853,14 +828,19 @@ class TechnitiumDHCPDeviceIsActivelyUsedSensor(TechnitiumDHCPDeviceDiagnosticSen
         """Return whether the device is actively used."""
         device_data = self._get_device_data()
         if device_data:
-            return "Yes" if device_data.get("is_actively_used", False) else "No"
+            is_actively_used = device_data.get("is_actively_used")
+            if is_actively_used is None:
+                return None
+            return "Yes" if is_actively_used else "No"
         return None
 
     @property
     def icon(self):
         """Return the icon for this sensor."""
         device_data = self._get_device_data()
-        if device_data and device_data.get("is_actively_used", False):
+        if not device_data or device_data.get("is_actively_used") is None:
+            return "mdi:account-question"
+        if device_data.get("is_actively_used"):
             return "mdi:account-check"
         return "mdi:account-off"
 
@@ -907,6 +887,7 @@ class DynamicSensorManager:
         self.dhcp_coordinator = dhcp_coordinator
         self.server_name = server_name
         self.known_devices = set()  # Track devices we've already created sensors for
+        self._creating_devices = set()
         self._listener = None
 
         _LOGGER.debug("Dynamic sensor manager initialized for entry %s", entry.entry_id)
@@ -917,22 +898,15 @@ class DynamicSensorManager:
         if self.dhcp_coordinator.data:
             for lease in self.dhcp_coordinator.data:
                 mac_address = lease.get("mac_address", "")
-                _LOGGER.debug("Dynamic sensor manager - lease.get.mac_address: %s", mac_address)
                 if mac_address:
                     normalized_mac = normalize_mac_address(mac_address)
                     self.known_devices.add(normalized_mac)
-                    _LOGGER.debug("Added known device: %s", normalized_mac)
 
         # Set up listener for coordinator updates
-        _LOGGER.debug("Setting up coordinator listener, coordinator type: %s", type(self.dhcp_coordinator))
-        _LOGGER.debug("Available coordinator methods: %s", [m for m in dir(self.dhcp_coordinator) if 'listener' in m.lower()])
-
         if hasattr(self.dhcp_coordinator, 'async_add_listener'):
             def _sync_listener():
-                _LOGGER.debug("DHCP COORDINATOR: async listener triggered")
                 self.hass.async_create_task(self._handle_coordinator_update())
             self._listener = self.dhcp_coordinator.async_add_listener(_sync_listener)
-            _LOGGER.debug("Successfully added coordinator listener")
         else:
             _LOGGER.error("DHCP coordinator does not have async_add_listener method!")
             _LOGGER.error("Coordinator class: %s", type(self.dhcp_coordinator))
@@ -954,55 +928,42 @@ class DynamicSensorManager:
 
     async def _handle_coordinator_update(self):
         """Handle coordinator data updates and create sensors for new devices."""
-        _LOGGER.debug("Dynamic sensor manager: _handle_coordinator_update called")
         if not self.dhcp_coordinator.data:
-            _LOGGER.debug("Dynamic sensor manager: No coordinator data available")
             return
 
-        current_devices = set()
         new_devices = []
 
         # Process current devices from coordinator
         for lease in self.dhcp_coordinator.data:
             mac_address = lease.get("mac_address", "")
             if not mac_address:
-                _LOGGER.debug("Dynamic sensor manager: Skipping lease with no MAC address: %s", lease)
                 continue
 
             normalized_mac = normalize_mac_address(mac_address)
-            current_devices.add(normalized_mac)
 
-            # Check if this is a new device we haven't seen before
-            if normalized_mac not in self.known_devices:
+            if (
+                normalized_mac not in self.known_devices
+                and normalized_mac not in self._creating_devices
+            ):
                 new_devices.append(lease)
-                self.known_devices.add(normalized_mac)
                 _LOGGER.info("Dynamic sensor manager: Discovered new device: %s (%s)",
                            normalized_mac, lease.get("hostname", "no hostname"))
-
-        # Track removed devices for logging (entities will become unavailable naturally)
-        removed_devices = self.known_devices - current_devices
-        if removed_devices:
-            _LOGGER.info("Dynamic sensor manager: Detected %d removed devices: %s",
-                        len(removed_devices), removed_devices)
-            _LOGGER.info("Sensors for removed devices will become unavailable automatically")
-            # Remove them from our known devices set
-            self.known_devices -= removed_devices
-
-        # Update known devices to current state
-        self.known_devices = current_devices.copy()
 
         # Create sensors for new devices
         if new_devices:
             _LOGGER.info("Dynamic sensor manager: Creating sensors for %d new devices", len(new_devices))
             await self._create_sensors_for_devices(new_devices)
-        else:
-            _LOGGER.debug("Dynamic sensor manager: No new devices found in coordinator update")
 
     async def _create_sensors_for_devices(self, devices):
         """Create diagnostic sensors for a list of new devices."""
+        device_macs = {
+            normalize_mac_address(device.get("mac_address", ""))
+            for device in devices
+            if device.get("mac_address")
+        }
+        self._creating_devices.update(device_macs)
         try:
             if not devices:
-                _LOGGER.debug("Dynamic sensor manager: No devices provided for sensor creation")
                 return
 
             new_sensors = await _create_device_sensors(
@@ -1015,6 +976,7 @@ class DynamicSensorManager:
             if new_sensors:
                 _LOGGER.info("Dynamic sensor manager: Adding %d new sensors to Home Assistant", len(new_sensors))
                 self.async_add_entities(new_sensors, True)
+                self.known_devices.update(device_macs)
                 _LOGGER.info("Dynamic sensor manager: Successfully added %d sensors for %d new devices",
                            len(new_sensors), len(devices))
             else:
@@ -1022,6 +984,8 @@ class DynamicSensorManager:
 
         except Exception as e:
             _LOGGER.error("Dynamic sensor manager: Error creating sensors for new devices: %s", e, exc_info=True)
+        finally:
+            self._creating_devices.difference_update(device_macs)
 
     def cleanup(self):
         """Clean up the sensor manager."""
