@@ -33,6 +33,7 @@ from .const import (
     DOMAIN,
     STATS_UPDATE_INTERVAL_OPTIONS,
 )
+from .utils import validate_ip_ranges_config
 
 CONFIG_VERSION = 4
 
@@ -129,67 +130,92 @@ class TechnitiumDNSOptionsFlowHandler(config_entries.OptionsFlow):
 
     async def async_step_init(self, user_input=None):
         """Manage the options."""
+        validation_message = ""
         if user_input is not None:
             if user_input.get("test_dhcp"):
                 return await self.async_step_dhcp_test()
 
-            data_to_save = {k: v for k, v in user_input.items() if k != "test_dhcp"}
-            return self.async_create_entry(title="", data=data_to_save)
+            filter_mode = user_input.get("dhcp_ip_filter_mode", "disabled")
+            if filter_mode in ("include", "exclude"):
+                is_valid, validation_message = validate_ip_ranges_config(
+                    user_input.get("dhcp_ip_ranges", "")
+                )
+                if not is_valid:
+                    validation_message = f"Invalid IP range configuration: {validation_message}"
+                else:
+                    validation_message = ""
+
+            if validation_message:
+                defaults = {**self.config_entry.options, **user_input}
+            else:
+                data_to_save = {k: v for k, v in user_input.items() if k != "test_dhcp"}
+                for key in (
+                    "dhcp_update_interval",
+                    CONF_STATS_UPDATE_INTERVAL,
+                    CONF_ACTIVITY_SCORE_THRESHOLD,
+                    CONF_ACTIVITY_ANALYSIS_WINDOW,
+                ):
+                    if key in data_to_save:
+                        data_to_save[key] = int(data_to_save[key])
+                return self.async_create_entry(title="", data=data_to_save)
+
+        else:
+            defaults = self.config_entry.options
 
         options_schema = vol.Schema(
             {
                 vol.Optional(
                     "enable_dhcp_tracking",
-                    default=self.config_entry.options.get("enable_dhcp_tracking", False),
+                    default=defaults.get("enable_dhcp_tracking", False),
                 ): bool,
                 vol.Optional(
                     "dhcp_update_interval",
-                    default=self.config_entry.options.get("dhcp_update_interval", 60),
-                ): vol.In(DHCP_UPDATE_INTERVAL_OPTIONS),
+                    default=str(defaults.get("dhcp_update_interval", 60)),
+                ): vol.In([str(value) for value in DHCP_UPDATE_INTERVAL_OPTIONS]),
                 vol.Optional(
                     CONF_STATS_UPDATE_INTERVAL,
-                    default=self.config_entry.options.get(
+                    default=str(defaults.get(
                         CONF_STATS_UPDATE_INTERVAL, DEFAULT_STATS_UPDATE_INTERVAL
-                    ),
-                ): vol.In(STATS_UPDATE_INTERVAL_OPTIONS),
+                    )),
+                ): vol.In([str(value) for value in STATS_UPDATE_INTERVAL_OPTIONS]),
                 vol.Optional(
                     "dhcp_ip_filter_mode",
-                    default=self.config_entry.options.get("dhcp_ip_filter_mode", "disabled"),
+                    default=defaults.get("dhcp_ip_filter_mode", "disabled"),
                 ): vol.In(list(DHCP_IP_FILTER_MODES.keys())),
                 vol.Optional(
                     "dhcp_ip_ranges",
-                    default=self.config_entry.options.get("dhcp_ip_ranges", ""),
+                    default=defaults.get("dhcp_ip_ranges", ""),
                 ): str,
                 vol.Optional(
                     CONF_DHCP_LOG_TRACKING,
-                    default=self.config_entry.options.get(
+                    default=defaults.get(
                         CONF_DHCP_LOG_TRACKING, DEFAULT_DHCP_LOG_TRACKING
                     ),
                 ): bool,
                 vol.Optional(
                     CONF_DHCP_STALE_THRESHOLD,
-                    default=self.config_entry.options.get(
+                    default=defaults.get(
                         CONF_DHCP_STALE_THRESHOLD, DEFAULT_DHCP_STALE_THRESHOLD
                     ),
                 ): vol.In(list(DHCP_STALE_THRESHOLD_OPTIONS.keys())),
                 vol.Optional(
                     CONF_DHCP_SMART_ACTIVITY,
-                    default=self.config_entry.options.get(
+                    default=defaults.get(
                         CONF_DHCP_SMART_ACTIVITY, DEFAULT_DHCP_SMART_ACTIVITY
                     ),
                 ): bool,
                 vol.Optional(
                     CONF_ACTIVITY_SCORE_THRESHOLD,
-                    default=self.config_entry.options.get(
+                    default=str(defaults.get(
                         CONF_ACTIVITY_SCORE_THRESHOLD, DEFAULT_ACTIVITY_SCORE_THRESHOLD
-                    ),
-                ): vol.In(list(ACTIVITY_SCORE_THRESHOLDS.keys())),
+                    )),
+                ): vol.In([str(value) for value in ACTIVITY_SCORE_THRESHOLDS]),
                 vol.Optional(
                     CONF_ACTIVITY_ANALYSIS_WINDOW,
-                    default=self.config_entry.options.get(
+                    default=str(defaults.get(
                         CONF_ACTIVITY_ANALYSIS_WINDOW, DEFAULT_ACTIVITY_ANALYSIS_WINDOW
-                    ),
-                ): vol.In(list(ACTIVITY_ANALYSIS_WINDOWS.keys())),
+                    )),
+                ): vol.In([str(value) for value in ACTIVITY_ANALYSIS_WINDOWS]),
                 vol.Optional("test_dhcp", default=False): bool,
             }
         )
@@ -203,6 +229,7 @@ class TechnitiumDNSOptionsFlowHandler(config_entries.OptionsFlow):
                     "Technitium DHCP server. Update interval determines how often device "
                     "status is checked. Use IP filtering to control which devices are "
                     "tracked based on their IP addresses."
+                    + (f"\n\n{validation_message}" if validation_message else "")
                 )
             },
         )

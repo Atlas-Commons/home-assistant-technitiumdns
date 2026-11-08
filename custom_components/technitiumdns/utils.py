@@ -2,15 +2,27 @@
 
 import ipaddress
 import logging
-from datetime import datetime
-from typing import List, Set
+import re
+from bisect import bisect_right
+from dataclasses import dataclass
+from datetime import datetime, timezone
+from functools import lru_cache
 
 from homeassistant.helpers.entity import DeviceInfo
-from homeassistant.util import dt as dt_util
 
 from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
+MAX_IP_RANGE_ADDRESSES = 10_000
+
+
+@dataclass(frozen=True)
+class ParsedIPRanges:
+    """Compact, merged IPv4 intervals parsed from a filter configuration."""
+
+    intervals: tuple[tuple[int, int], ...]
+    address_count: int
+    error: str | None = None
 
 
 def server_device_info(entry_id: str, server_name: str) -> DeviceInfo:
@@ -78,9 +90,10 @@ def normalize_hostname(hostname) -> str:
     )
     return str(hostname)
 
-def parse_ip_ranges(ip_ranges_str: str) -> Set[str]:
+@lru_cache(maxsize=128)
+def parse_ip_ranges(ip_ranges_str: str) -> ParsedIPRanges:
     """
-    Parse IP ranges string into a set of IP addresses.
+    Parse IP ranges into merged integer intervals without expanding addresses.
     
     Supports:
     - Single IPs: 192.168.1.100
@@ -92,67 +105,53 @@ def parse_ip_ranges(ip_ranges_str: str) -> Set[str]:
         ip_ranges_str: String containing IP addresses/ranges
         
     Returns:
-        Set of individual IP addresses as strings
+        Parsed intervals, their unique address count, and any parse error.
     """
-    ip_set = set()
-
     if not ip_ranges_str or not ip_ranges_str.strip():
-        return ip_set
+        return ParsedIPRanges((), 0, "At least one IP address or range is required")
 
-    # Split by various delimiters
-    ranges = []
-    for delimiter in [',', ';', '\n']:
-        if delimiter in ip_ranges_str:
-            ranges = [r.strip() for r in ip_ranges_str.split(delimiter)]
-            break
-    else:
-        ranges = [ip_ranges_str.strip()]
-
-    for range_entry in ranges:
+    intervals = []
+    parse_error = None
+    for range_entry in re.split(r"[,;\r\n]+", ip_ranges_str):
         range_entry = range_entry.strip()
         if not range_entry:
             continue
 
         try:
-            if '-' in range_entry and '/' not in range_entry:
-                # Handle IP ranges like 192.168.1.1-192.168.1.50
-                start_ip, end_ip = range_entry.split('-', 1)
-                start_ip = start_ip.strip()
-                end_ip = end_ip.strip()
-
-                start_addr = ipaddress.IPv4Address(start_ip)
-                end_addr = ipaddress.IPv4Address(end_ip)
-
-                if start_addr > end_addr:
-                    _LOGGER.warning("Invalid IP range %s: start IP is greater than end IP", range_entry)
-                    continue
-
-                # Add all IPs in the range
-                current = start_addr
-                while current <= end_addr:
-                    ip_set.add(str(current))
-                    current += 1
-                    
-            elif '/' in range_entry:
-                # Handle CIDR notation like 192.168.1.0/24
+            if "/" in range_entry:
                 network = ipaddress.IPv4Network(range_entry, strict=False)
-                for ip in network.hosts():
-                    ip_set.add(str(ip))
-                # Also include network and broadcast if it's a single host (/32)
-                if network.prefixlen == 32:
-                    ip_set.add(str(network.network_address))
-                    
+                start = int(network.network_address)
+                end = int(network.broadcast_address)
+                if network.prefixlen <= 30:
+                    start += 1
+                    end -= 1
+            elif "-" in range_entry:
+                start_text, end_text = range_entry.split("-", 1)
+                start = int(ipaddress.IPv4Address(start_text.strip()))
+                end = int(ipaddress.IPv4Address(end_text.strip()))
+                if start > end:
+                    raise ValueError("start IP is greater than end IP")
             else:
-                # Handle single IP
-                ip_addr = ipaddress.IPv4Address(range_entry)
-                ip_set.add(str(ip_addr))
-                
-        except (ipaddress.AddressValueError, ValueError) as e:
-            _LOGGER.warning("Invalid IP address or range '%s': %s", range_entry, e)
-            continue
-    
-    _LOGGER.debug("Parsed %d IP addresses from ranges: %s", len(ip_set), ip_ranges_str[:100])
-    return ip_set
+                start = end = int(ipaddress.IPv4Address(range_entry))
+            intervals.append((start, end))
+        except ValueError as err:
+            if parse_error is None:
+                parse_error = f"Invalid IP address or range '{range_entry}': {err}"
+            _LOGGER.warning("Invalid IP address or range '%s': %s", range_entry, err)
+
+    if not intervals:
+        return ParsedIPRanges((), 0, parse_error or "No valid IP addresses found")
+
+    merged_intervals: list[tuple[int, int]] = []
+    for start, end in sorted(intervals):
+        if merged_intervals and start <= merged_intervals[-1][1] + 1:
+            previous_start, previous_end = merged_intervals[-1]
+            merged_intervals[-1] = (previous_start, max(previous_end, end))
+        else:
+            merged_intervals.append((start, end))
+
+    address_count = sum(end - start + 1 for start, end in merged_intervals)
+    return ParsedIPRanges(tuple(merged_intervals), address_count, parse_error)
 
 
 def should_track_ip(ip_address: str, filter_mode: str, ip_ranges_str: str) -> bool:
@@ -167,26 +166,34 @@ def should_track_ip(ip_address: str, filter_mode: str, ip_ranges_str: str) -> bo
     Returns:
         True if the IP should be tracked, False otherwise
     """
-    if filter_mode == "disabled" or not ip_ranges_str:
+    if filter_mode == "disabled":
         return True
+
+    if filter_mode not in ("include", "exclude"):
+        _LOGGER.warning("Unknown IP filter mode: %s", filter_mode)
+        return False
     
     try:
-        ipaddress.IPv4Address(ip_address)  # Validate IP format
-    except ipaddress.AddressValueError:
+        address = int(ipaddress.IPv4Address(ip_address))
+    except ValueError:
         _LOGGER.warning("Invalid IP address format: %s", ip_address)
         return False
     
-    configured_ips = parse_ip_ranges(ip_ranges_str)
-    
-    if filter_mode == "include":
-        # Only track IPs that are in the configured ranges
-        return ip_address in configured_ips
-    elif filter_mode == "exclude":
-        # Track all IPs except those in the configured ranges
-        return ip_address not in configured_ips
-    
-    # Default to tracking if unknown mode
-    return True
+    configured_ranges = parse_ip_ranges(ip_ranges_str)
+    if (
+        configured_ranges.error
+        or not configured_ranges.intervals
+        or configured_ranges.address_count > MAX_IP_RANGE_ADDRESSES
+    ):
+        return False
+
+    interval_index = bisect_right(configured_ranges.intervals, (address, 1 << 32)) - 1
+    is_configured = (
+        interval_index >= 0
+        and configured_ranges.intervals[interval_index][0] <= address
+        <= configured_ranges.intervals[interval_index][1]
+    )
+    return is_configured if filter_mode == "include" else not is_configured
 
 
 def validate_ip_ranges_config(ip_ranges_str: str) -> tuple[bool, str]:
@@ -199,46 +206,36 @@ def validate_ip_ranges_config(ip_ranges_str: str) -> tuple[bool, str]:
     Returns:
         Tuple of (is_valid, error_message)
     """
-    if not ip_ranges_str or not ip_ranges_str.strip():
-        return True, ""
-    
-    try:
-        ip_set = parse_ip_ranges(ip_ranges_str)
-        if not ip_set:
-            return False, "No valid IP addresses found in configuration"
-        
-        # Check for reasonable limits (prevent memory issues)
-        if len(ip_set) > 10000:
-            return False, f"Too many IP addresses ({len(ip_set)}). Maximum 10,000 allowed."
-        
-        return True, f"Configuration valid. {len(ip_set)} IP addresses will be processed."
-        
-    except Exception as e:
-        return False, f"Configuration error: {str(e)}"
+    parsed_ranges = parse_ip_ranges(ip_ranges_str)
+    if parsed_ranges.error:
+        return False, parsed_ranges.error
+
+    if parsed_ranges.address_count > MAX_IP_RANGE_ADDRESSES:
+        return (
+            False,
+            f"Too many IP addresses ({parsed_ranges.address_count}). "
+            f"Maximum {MAX_IP_RANGE_ADDRESSES:,} allowed.",
+        )
+
+    return (
+        True,
+        f"Configuration valid. {parsed_ranges.address_count} IP addresses will be processed.",
+    )
 
 
-def parse_timestamp(timestamp_str):
-    """Parse a timestamp string to a datetime object.
-    
-    TechnitiumDNS API returns timestamps in various formats.
-    Returns None if the timestamp cannot be parsed.
-    """
-    if not timestamp_str:
+def parse_timestamp(timestamp_value):
+    """Parse an ISO timestamp or datetime and return timezone-aware UTC."""
+    if isinstance(timestamp_value, datetime):
+        parsed = timestamp_value
+    elif isinstance(timestamp_value, str) and timestamp_value:
+        try:
+            parsed = datetime.fromisoformat(timestamp_value.replace("Z", "+00:00"))
+        except ValueError:
+            _LOGGER.warning("Failed to parse timestamp '%s'", timestamp_value)
+            return None
+    else:
         return None
-    
-    try:
-        # Try to parse ISO 8601 format (e.g., "2024-01-15T10:30:00.000Z")
-        if timestamp_str.endswith('Z'):
-            timestamp_str = timestamp_str[:-1] + '+00:00'
-        
-        # Use Home Assistant's dt_util for timezone-aware parsing
-        dt = dt_util.parse_datetime(timestamp_str)
-        if dt:
-            return dt
-            
-        # Fallback: try standard ISO format parsing
-        return datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
-        
-    except (ValueError, TypeError) as e:
-        _LOGGER.warning("Failed to parse timestamp '%s': %s", timestamp_str, e)
-        return None
+
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
