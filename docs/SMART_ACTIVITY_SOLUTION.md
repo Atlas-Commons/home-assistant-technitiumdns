@@ -1,21 +1,30 @@
 # Smart Activity Analysis Solution
 
 ## Problem Statement
-Some devices make automatic background calls (mostly UDP), causing the current implementation to consider them active when they're actually dormant. The goal is to distinguish between genuine user activity and background noise.
+DNS query logs contain both routine and interactive traffic, and a short or old sample cannot establish current activity. This analysis classifies observed DNS traffic only; it does not determine whether a device is reachable, whether a person is present, or who caused a query.
 
 ## Solution: Multi-Factor Activity Scoring System
 
 ### Overview
-Implemented a comprehensive **Smart Activity Analyzer** that calculates an activity score (0-100) based on multiple factors to determine if a device is genuinely being used by a person or just making automated background calls.
+The **Smart Activity Analyzer** calculates a heuristic score (0-100) from DNS records when there is enough recent evidence. The score is a traffic classification, not a probability or a claim about a person's activity.
+
+#### Evidence and score contract
+- A sample is scoreable only when at least **3 DNS log records** fall within the newest **30 minutes**.
+- Scores and `is_actively_used` are `None` when evidence is insufficient; an empty analysis window has status `no_data`, while a sparse or old sample has status `insufficient_evidence`.
+- `activity_evidence` reports the required and observed recent counts, the recent window, the total records in the configured analysis window, and the newest record age when available.
+- A numeric score is calculated only from the recent records that passed the evidence gate. The configured threshold compares that heuristic score; it does not assert presence or connectivity.
+- `score_breakdown` is carried with the analyzed lease data and exposed by the activity summary diagnostic sensor for inspection.
+- The count is a count of log records, not guaranteed independent user actions. Missing, truncated, cached, or unattributed logs can still limit interpretation.
+- This heuristic cannot guarantee elimination of false positives or false negatives.
 
 ### Key Features
 
 #### 1. **Multi-Factor Scoring Algorithm** (Weighted Score Components)
-- **Background Content Analysis (30%)**: Identifies known background domains (NTP, updates, telemetry)
-- **Protocol Mix Analysis (25%)**: TCP traffic scores higher than UDP (user browsing vs automated checks)
-- **Domain Diversity (20%)**: More diverse domains indicate interactive usage
-- **Query Frequency Patterns (15%)**: Human-like frequency vs automated bursts
-- **Timing Irregularity (10%)**: Human behavior is irregular, automation is regular
+- **Background Content Analysis (30%)**: Matches configured DNS suffixes and label prefixes
+- **Protocol Mix Analysis (25%)**: Applies configured transport weights
+- **Domain Diversity (20%)**: Scores diversity in the observed DNS names
+- **Query Frequency Patterns (15%)**: Scores query rate within the recent sample
+- **Timing Irregularity (10%)**: Scores variation in observed query intervals
 
 #### 2. **Background Traffic Detection**
 Automatically identifies background domains including:
@@ -26,10 +35,10 @@ Automatically identifies background domains including:
 - IoT background services (`amazonaws.com`, `icloud.com`)
 
 #### 3. **Protocol Intelligence**
-- **HTTPS**: 1.2x weight (user browsing)
-- **TCP**: 1.0x weight (interactive)
-- **HTTP**: 0.8x weight (mixed usage)
-- **UDP**: 0.3x weight (often background)
+- **HTTPS**: 1.2x configured weight
+- **TCP**: 1.0x configured weight
+- **HTTP**: 0.8x configured weight
+- **UDP**: 0.3x configured weight
 
 #### 4. **Query Type Analysis**
 - **A/AAAA records**: Full weight (normal browsing)
@@ -39,22 +48,24 @@ Automatically identifies background domains including:
 ### Configuration Options
 
 #### New Settings Added:
-- **Smart Activity Analysis**: Enable/disable intelligent activity detection
-- **Activity Score Threshold**: Minimum score to consider device "actively used" (default: 25)
-- **Analysis Window**: Time window for pattern analysis (15min - 4hrs, default: 30min)
+- **DNS Log Tracking**: Off by default; enables retrieval and analysis of DNS query records
+- **Smart Activity Analysis**: On by default; scores remain unknown unless DNS log tracking is enabled and enough recent records are available
+- **Activity Score Threshold**: Minimum score for the `is_actively_used` heuristic (default: 55)
+- **Analysis Window**: Time window for pattern analysis (15min - 4hrs, default: 120min); the scoreable evidence must still be in the newest 30 minutes
+- **Option changes**: Saving integration options reloads the config entry so the coordinator uses the new settings.
 
 #### Threshold Levels:
 - **0-10**: Very Low (mostly background)
-- **10-25**: Low (some user activity)
-- **25-50**: Medium (regular usage) ← Default threshold
-- **50-75**: High (active usage)
-- **75-100**: Very High (heavy usage)
+- **10-25**: Low DNS activity score
+- **25-50**: Medium DNS score
+- **50-75**: High DNS score (the default threshold is 55)
+- **75-100**: Very high DNS score
 
 ### Implementation Details
 
 #### New Components:
 1. **`activity_analyzer.py`**: Core analysis engine with sophisticated algorithms
-2. **Enhanced device tracker**: Integrates smart activity into connection status
+2. **Enhanced device tracker**: Keeps DHCP lease presence separate from DNS activity classification
 3. **New diagnostic sensors**: Activity Score, Is Actively Used, Activity Summary
 4. **Updated API**: Methods for comprehensive DNS log retrieval
 
@@ -72,20 +83,20 @@ Automatically identifies background domains including:
 **Timing Analysis:**
 ```python
 # Calculates coefficient of variation for query intervals
-# Human activity: 0.3-2.0 CV (irregular but not random)
-# Automated: <0.3 CV (too regular) or >2.0 CV (too random)
+# Irregular interval pattern: 0.3-2.0 CV
+# Other interval patterns: <0.3 CV or >2.0 CV
 ```
 
 **Frequency Scoring:**
 ```python
-# Optimal human range: 0.5-5 queries/minute
+# Preferred query-rate range: 0.5-5 queries/minute
 # Below: likely background only
 # Above: likely automated bursts
 ```
 
 ### Usage Examples
 
-#### Example 1: Active User Device
+#### Example 1: Recent Above-Threshold DNS Sample
 ```
 Activity Score: 78.5
 - 45 queries total
@@ -93,10 +104,10 @@ Activity Score: 78.5
 - Mixed TCP/HTTPS protocols
 - High domain diversity
 - Irregular timing patterns
-Result: CONNECTED (actively used)
+Result: The recent DNS score exceeds the configured threshold; this does not establish reachability or person presence.
 ```
 
-#### Example 2: Background-Only Device
+#### Example 2: Low-Scoring DNS Sample
 ```
 Activity Score: 12.3
 - 8 queries total
@@ -104,40 +115,39 @@ Activity Score: 12.3
 - Mostly UDP protocols
 - Low domain diversity
 - Regular timing (every 15 minutes)
-Result: DISCONNECTED (dormant)
+Result: The observed DNS traffic scores below the configured threshold; this does not establish disconnection.
 ```
 
-#### Example 3: Mixed Usage Device
+#### Example 3: Mixed DNS Sample
 ```
 Activity Score: 34.1
 - 23 queries total
 - 35% background traffic
-- Some TCP browsing activity
+- Some TCP queries
 - Moderate domain diversity
-Result: CONNECTED (some user activity above threshold)
+Result: The recent DNS score is below the default threshold of 55; the records do not identify their cause.
 ```
 
 ### Benefits
 
-1. **Eliminates False Positives**: Devices with only background traffic show as disconnected
-2. **Maintains True Positives**: Genuine user activity still detected accurately
+1. **Explicit Evidence State**: Sparse and old samples remain unknown instead of being assigned a boolean.
+2. **Inspectable Heuristic**: Recent query evidence is exposed for diagnostics.
 3. **Configurable Sensitivity**: Adjustable threshold for different network environments
 4. **Rich Diagnostics**: Detailed scoring breakdown for troubleshooting
-5. **Backwards Compatible**: Falls back to traditional methods if analysis fails
+5. **Independent Lease State**: DHCP lease presence remains available independently; DNS analysis failures do not produce an activity score
 
 ### Diagnostic Information
 
 Each device now provides:
-- **Activity Score**: Numerical intelligence score (0-100)
-- **Is Actively Used**: Binary determination based on threshold
-- **Activity Summary**: Human-readable analysis ("High user activity - 45 queries, 15% background, 3 protocols")
-- **Score Breakdown**: Individual component scores for debugging
+- **Activity Score**: Numeric DNS traffic score (0-100), or unknown when evidence is insufficient
+- **Is Actively Used**: Nullable heuristic classification based on the configured score threshold
+- **Activity Summary**: DNS traffic summary (for example, "High DNS activity score - 45 queries, 15% background, 3 protocols")
 
 ### Performance Optimizations
 
-- **Batch Processing**: Analyzes all devices in single API call
-- **Dynamic Limits**: Adjusts log retrieval based on device count
-- **Configurable Windows**: Shorter analysis windows for better performance
-- **Graceful Fallback**: Reverts to DHCP-only tracking if DNS analysis fails
+- **Batch Processing**: Analyzes devices from one shared query-log request
+- **Bounded Retrieval**: Requests up to 5,000 log entries; busy installations may have incomplete coverage
+- **Configurable Windows**: The selected analysis window limits candidate records before the recent-evidence gate
+- **Graceful Failure State**: DNS errors and missing evidence remain explicit; lease-based tracker state is independent
 
-This solution effectively solves the dormant device problem by providing intelligent, multi-factor analysis that can distinguish between genuine user activity and automated background processes.
+This heuristic summarizes DNS traffic patterns. It cannot reliably identify human activity, device reachability, or complete activity when logs are missing or truncated.
