@@ -5,6 +5,7 @@ import re
 import voluptuous as vol
 
 from homeassistant import core
+from homeassistant.components import persistent_notification
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr, entity_registry as er
@@ -466,8 +467,6 @@ async def async_cleanup_orphaned_entities(
 
     if orphaned_entities:
         _LOGGER.info("Found %d DHCP entities whose MAC is absent from current coordinator data:", len(orphaned_entities))
-        for entity_id, mac, platform in orphaned_entities[:20]:
-            _LOGGER.info("  - %s (%s, MAC: %s)", entity_id, platform, mac)
         if len(orphaned_entities) > 20:
             _LOGGER.info("  - %d additional candidates omitted", len(orphaned_entities) - 20)
     else:
@@ -478,7 +477,38 @@ async def async_cleanup_orphaned_entities(
 
     if unknown_entities:
         _LOGGER.info("Found %d DHCP entities with unknown orphan status:", len(unknown_entities))
-        for entity_id, platform in unknown_entities[:20]:
-            _LOGGER.info("  - %s (%s)", entity_id, platform)
         if len(unknown_entities) > 20:
             _LOGGER.info("  - %d additional candidates omitted", len(unknown_entities) - 20)
+
+    report_lines = []
+    if current_devices is None:
+        report_lines.append("Current DHCP data is unavailable; orphan status is unknown.")
+    if orphaned_entities:
+        report_lines.append("Orphaned entities (MAC absent from current DHCP data):")
+        report_lines.extend(
+            f"- `{entity_id}` ({platform})"
+            for entity_id, _, platform in orphaned_entities[:20]
+        )
+        if len(orphaned_entities) > 20:
+            report_lines.append(
+                f"- {len(orphaned_entities) - 20} additional candidates omitted"
+            )
+    else:
+        report_lines.append("No entities were confirmed as orphaned.")
+    if unknown_entities:
+        report_lines.append("Entities with unknown orphan status:")
+        report_lines.extend(
+            f"- `{entity_id}` ({platform})"
+            for entity_id, platform in unknown_entities[:20]
+        )
+        if len(unknown_entities) > 20:
+            report_lines.append(
+                f"- {len(unknown_entities) - 20} additional candidates omitted"
+            )
+
+    persistent_notification.async_create(
+        hass,
+        "\n".join(report_lines),
+        title="TechnitiumDNS DHCP entity report",
+        notification_id=f"{DOMAIN}_dhcp_entity_report_{entry_id}",
+    )

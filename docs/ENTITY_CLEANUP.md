@@ -28,7 +28,7 @@ data:
   config_entry_id: "your_entry_id"  # Optional; omitted scans all loaded entries
 ```
 
-The requested scan writes counts and up to 20 individual entries per category to the integration log. It does not run on every coordinator update. Despite its legacy name, `cleanup_devices` is report-only and does not perform cleanup or deletion.
+The requested scan writes aggregate counts to the integration log and creates a persistent notification with up to 20 entity IDs per category. MAC addresses and entity IDs are not written to the log. It does not run on every coordinator update. Despite its legacy name, `cleanup_devices` is report-only and does not perform cleanup or deletion.
 
 ## Related DHCP Behavior
 

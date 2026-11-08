@@ -1,6 +1,6 @@
 cleanup_devices:
-  name: Cleanup Orphaned Devices
-  description: Remove device tracker entities and sensors for devices that no longer match IP filter criteria
+  name: Scan for Orphaned DHCP Entities
+  description: Create a non-destructive report of DHCP entities that no longer match current leases
   fields:
     config_entry_id:
       name: Config Entry ID

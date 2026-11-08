@@ -6,7 +6,7 @@ import types
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
@@ -20,6 +20,13 @@ def _install_import_stubs():
 
     homeassistant = sys.modules.setdefault("homeassistant", types.ModuleType("homeassistant"))
     homeassistant.__path__ = []
+    components = types.ModuleType("homeassistant.components")
+    components.__path__ = []
+    persistent_notification = types.ModuleType("homeassistant.components.persistent_notification")
+    persistent_notification.async_create = Mock()
+    components.persistent_notification = persistent_notification
+    sys.modules["homeassistant.components"] = components
+    sys.modules["homeassistant.components.persistent_notification"] = persistent_notification
     core = types.ModuleType("homeassistant.core")
     core.HomeAssistant = object
     core_module = sys.modules.setdefault("homeassistant.core", core)
@@ -120,21 +127,29 @@ class TestDHCPEntityCandidates(unittest.TestCase):
 class TestDHCPOrphanReport(unittest.IsolatedAsyncioTestCase):
     """The scan must remain read-only and avoid false orphan claims."""
 
-    async def test_report_limits_entity_log_messages(self):
+    async def test_report_keeps_identifiers_out_of_logs(self):
         entities = [
             _entity(f"sensor.client_{index}", f"technitiumdns_dhcp_{index:012x}_ip_address")
             for index in range(100)
         ]
         registry = SimpleNamespace(entities={entity.entity_id: entity for entity in entities})
 
-        with patch.object(integration.er, "async_get", return_value=registry):
+        with (
+            patch.object(integration.er, "async_get", return_value=registry),
+            patch.object(integration.persistent_notification, "async_create") as notify,
+        ):
             with self.assertLogs(integration.__name__, level="DEBUG") as logs:
                 await integration.async_cleanup_orphaned_entities(
                     SimpleNamespace(), "entry", set()
                 )
 
-        self.assertLessEqual(len(logs.output), 24)
-        self.assertTrue(any("80 additional candidates omitted" in entry for entry in logs.output))
+        report = notify.call_args.args[1]
+        self.assertIn("sensor.client_0", report)
+        self.assertIn("80 additional candidates omitted", report)
+        self.assertNotIn("00:00:00:00:00:00", report)
+        self.assertLessEqual(len(logs.output), 10)
+        self.assertFalse(any("sensor.client_0" in entry for entry in logs.output))
+        self.assertFalse(any("00:00:00:00:00:00" in entry for entry in logs.output))
 
     async def test_unavailable_data_reports_unknown_without_registry_changes(self):
         tracker = _entity(
@@ -155,7 +170,10 @@ class TestDHCPOrphanReport(unittest.IsolatedAsyncioTestCase):
         }
         registry = SimpleNamespace(entities=dict(original_entries))
 
-        with patch.object(integration.er, "async_get", return_value=registry):
+        with (
+            patch.object(integration.er, "async_get", return_value=registry),
+            patch.object(integration.persistent_notification, "async_create") as notify,
+        ):
             with self.assertLogs(integration.__name__, level="INFO") as logs:
                 await integration.async_cleanup_orphaned_entities(
                     SimpleNamespace(), "entry", None
@@ -164,6 +182,7 @@ class TestDHCPOrphanReport(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(registry.entities, original_entries)
         self.assertTrue(any("orphan status is unknown" in entry for entry in logs.output))
         self.assertTrue(any("2 tracker/sensor candidates" in entry for entry in logs.output))
+        self.assertIn("orphan status is unknown", notify.call_args.args[1])
 
 
 class TestDHCPLeasesService(unittest.IsolatedAsyncioTestCase):
